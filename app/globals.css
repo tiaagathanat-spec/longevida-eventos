@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tokens de tema (light/dark) serão definidos aqui na fase de implementação visual */
+:root {
+  --font-sans: "Inter", sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply text-slate-800 dark:text-slate-200;
+  }
+}

@@ -1,0 +1,10 @@
+# Configuração de deploy no Netlify.
+# O Netlify detecta automaticamente o Next.js e aplica o runtime
+# @netlify/plugin-nextjs (suporta middleware, route handlers e SSR).
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NEXT_TELEMETRY_DISABLED = "1"

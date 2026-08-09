@@ -1,0 +1,526 @@
+// ============================================================
+// Longevida Eventos — Schema do Prisma
+// Espelha a migration SQL de produção (supabase/migrations/0002
+// _schema_producao.sql). O runtime atual usa o cliente do Supabase;
+// este schema existe para o comando `prisma generate` funcionar e
+// como camada de tipos/consultas quando o backend real entrar.
+//
+// Notas de fidelidade ao SQL:
+// - CHECK constraints e o EXCLUDE (faixas_numeracao) não são
+//   expressáveis no schema do Prisma; são mantidos apenas no SQL.
+// - Tabelas auxiliares não críticas para o app (eventos_versoes,
+//   importacoes_cronometragem, classificacoes, certificados, logs,
+//   evento_patrocinadores, resultados_parciais) podem ser incluídas
+//   depois via `prisma db pull`.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+enum TipoContaUsuario {
+  staff
+  responsavel
+  atleta
+}
+
+enum PapelOrganizacao {
+  administrador
+  organizador
+  cronometragem
+  financeiro
+  leitura
+}
+
+enum EventoStatus {
+  rascunho
+  publicado
+  encerrado
+}
+
+enum GeneroAtleta {
+  masculino
+  feminino
+  outro
+}
+
+enum GeneroCategoria {
+  masculino
+  feminino
+  livre
+}
+
+enum TipoSegmentoParcial {
+  natacao
+  ciclismo
+  corrida
+  transicao
+  outro
+}
+
+enum InscricaoStatus {
+  pendente
+  confirmada
+  cancelada
+}
+
+enum FormaPagamento {
+  pix
+  dinheiro
+  cartao
+  cortesia
+}
+
+enum PagamentoStatus {
+  pago
+  pendente
+  cancelado
+}
+
+enum CategoriaImagem {
+  logo
+  banner
+  kit
+  medalha
+  evento
+  premiacao
+  percurso
+}
+
+enum VisibilidadeImagem {
+  publica
+  privada
+}
+
+enum ResultadoStatus {
+  finalizado
+  dnf
+  dns
+  dsq
+}
+
+// ---------- Organizações (multi-tenant) ----------
+model Organizacoes {
+  id              String   @id @default(uuid()) @db.Uuid
+  nome            String
+  documento       String?
+  contatoEmail    String?  @map("contato_email")
+  contatoTelefone String?  @map("contato_telefone")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organizacaoUsuarios OrganizacaoUsuarios[]
+  eventosSeries       EventosSerie[]
+  equipes             Equipes[]
+
+  @@map("organizacoes")
+}
+
+// ---------- Usuários (perfil de aplicação; auth no Supabase Auth) ----------
+model Usuarios {
+  id          String           @id @db.Uuid
+  nome        String
+  email       String           @unique
+  tipoConta   TipoContaUsuario @default(atleta) @map("tipo_conta")
+  telefone    String?
+  criadoEm    DateTime         @default(now()) @map("criado_em") @db.Timestamptz
+
+  organizacaoUsuarios OrganizacaoUsuarios[]
+  atletas             Atletas[]
+  responsaveis        ResponsavelAtleta[]
+
+  @@map("usuarios")
+}
+
+model OrganizacaoUsuarios {
+  id            String           @id @default(uuid()) @db.Uuid
+  organizacaoId String           @map("organizacao_id") @db.Uuid
+  usuarioId     String           @map("usuario_id") @db.Uuid
+  papel         PapelOrganizacao @default(leitura)
+  vinculadoEm   DateTime         @default(now()) @map("vinculado_em") @db.Timestamptz
+
+  organizacao Organizacoes @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  usuario     Usuarios     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([organizacaoId, usuarioId])
+  @@map("organizacao_usuarios")
+}
+
+// ---------- Catálogos globais reutilizáveis ----------
+model Categorias {
+  id           String          @id @default(uuid()) @db.Uuid
+  nome         String
+  idadeMinima  Int?            @map("idade_minima")
+  idadeMaxima  Int?            @map("idade_maxima")
+  genero       GeneroCategoria @default(livre)
+  descricao    String          @default("")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  provas     Provas[]
+  atletas    Atletas[]
+  faixasNum  FaixasNumeracao[]
+
+  @@map("categorias")
+}
+
+model FaixasEtarias {
+  id           String @id @default(uuid()) @db.Uuid
+  nome         String
+  idadeMinima  Int    @map("idade_minima")
+  idadeMaxima  Int    @map("idade_maxima")
+
+  @@map("faixas_etarias")
+}
+
+model Modalidades {
+  id        String   @id @default(uuid()) @db.Uuid
+  nome      String
+  descricao String   @default("")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  provas Provas[]
+
+  @@map("modalidades")
+}
+
+model TiposProva {
+  id             String   @id @default(uuid()) @db.Uuid
+  nome           String
+  permiteEquipe  Boolean  @default(false) @map("permite_equipe")
+  descricao      String   @default("")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  provas Provas[]
+
+  @@map("tipos_prova")
+}
+
+model TiposEntrega {
+  id          String @id @default(uuid()) @db.Uuid
+  nome        String
+  descricao   String @default("")
+
+  entregas Entregas[]
+
+  @@map("tipos_entrega")
+}
+
+model Patrocinadores {
+  id          String   @id @default(uuid()) @db.Uuid
+  nome        String
+  logoUrl     String?  @map("logo_url")
+  siteUrl     String?  @map("site_url")
+  descricao   String   @default("")
+
+  @@map("patrocinadores")
+}
+
+// ---------- Equipes ----------
+model Equipes {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizacaoId   String?  @map("organizacao_id") @db.Uuid
+  nome            String
+  sigla           String?
+
+  organizacao Organizacoes? @relation(fields: [organizacaoId], references: [id], onDelete: SetNull)
+  inscricoes  Inscricoes[]
+
+  @@map("equipes")
+}
+
+// ---------- Séries de evento / Edições ----------
+model EventosSerie {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizacaoId  String  @map("organizacao_id") @db.Uuid
+  nome           String
+  descricao      String  @default("")
+  logoPadraoUrl  String? @map("logo_padrao_url")
+
+  organizacao Organizacoes @relation(fields: [organizacaoId], references: [id], onDelete: Restrict)
+  eventos     Eventos[]
+
+  @@map("eventos_serie")
+}
+
+model Eventos {
+  id          String      @id @default(uuid()) @db.Uuid
+  serieId     String      @map("serie_id") @db.Uuid
+  criadoPor   String?     @map("criado_por") @db.Uuid
+  edicao      String
+  dataInicio  DateTime    @map("data_inicio") @db.Date
+  dataFim     DateTime?   @map("data_fim") @db.Date
+  local       String
+  status      EventoStatus @default(rascunho)
+  versaoAtual Int         @default(0) @map("versao_atual")
+  criadoEm    DateTime    @default(now()) @map("criado_em") @db.Timestamptz
+
+  serie             EventosSerie       @relation(fields: [serieId], references: [id], onDelete: Cascade)
+  configuracao      ConfiguracoesEvento?
+  lotesInscricao    LotesInscricao[]
+  provas            Provas[]
+  faixasNumeracao   FaixasNumeracao[]
+  dorsais           Dorsais[]
+  galeriaImagens    GaleriaImagens[]
+
+  @@unique([serieId, edicao])
+  @@map("eventos")
+}
+
+model ConfiguracoesEvento {
+  id                            String   @id @default(uuid()) @db.Uuid
+  eventoId                      String   @unique @map("evento_id") @db.Uuid
+  permiteInscricaoUltimaHora    Boolean  @default(false) @map("permite_inscricao_ultima_hora")
+  exigeAtestadoMedico           Boolean  @default(false) @map("exige_atestado_medico")
+  exigeTermoResponsabilidade    Boolean  @default(true) @map("exige_termo_responsabilidade")
+  idadeMinimaPadrao             Int?     @map("idade_minima_padrao")
+  regulamentoUrl                String?  @map("regulamento_url")
+  politicaCancelamento          String   @default("") @map("politica_cancelamento")
+
+  evento Eventos @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@map("configuracoes_evento")
+}
+
+model LotesInscricao {
+  id           String   @id @default(uuid()) @db.Uuid
+  eventoId     String   @map("evento_id") @db.Uuid
+  nome         String
+  preco        Decimal  @default(0) @db.Decimal(10, 2)
+  dataInicio   DateTime? @map("data_inicio") @db.Date
+  dataFim      DateTime? @map("data_fim") @db.Date
+  vagasMaximas Int?     @map("vagas_maximas")
+
+  evento     Eventos     @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  inscricoes Inscricoes[]
+
+  @@map("lotes_inscricao")
+}
+
+// ---------- Provas e parciais ----------
+model Provas {
+  id           String   @id @default(uuid()) @db.Uuid
+  eventoId     String   @map("evento_id") @db.Uuid
+  modalidadeId String   @map("modalidade_id") @db.Uuid
+  categoriaId  String   @map("categoria_id") @db.Uuid
+  tipoProvaId  String   @map("tipo_prova_id") @db.Uuid
+  nome         String
+  distancia    Decimal? @db.Decimal(10, 3)
+  unidadeDistancia String? @map("unidade_distancia")
+  horario      DateTime? @db.Time
+  observacoes  String   @default("")
+
+  evento     Eventos     @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  modalidade Modalidades @relation(fields: [modalidadeId], references: [id], onDelete: Restrict)
+  categoria  Categorias  @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  tipoProva  TiposProva  @relation(fields: [tipoProvaId], references: [id], onDelete: Restrict)
+
+  inscricoes     Inscricoes[]
+  provaParciais  ProvaParciais[]
+  publicacoes    ResultadosPublicacoes[]
+
+  @@map("provas")
+}
+
+model ProvaParciais {
+  id           String             @id @default(uuid()) @db.Uuid
+  provaId      String             @map("prova_id") @db.Uuid
+  nome         String
+  tipoSegmento TipoSegmentoParcial @default(outro) @map("tipo_segmento")
+  ordem        Int
+  distancia    Decimal?           @db.Decimal(10, 3)
+  unidadeDistancia String?        @map("unidade_distancia")
+
+  prova Provas @relation(fields: [provaId], references: [id], onDelete: Cascade)
+
+  @@unique([provaId, ordem])
+  @@map("prova_parciais")
+}
+
+// ---------- Pessoas: atletas e responsáveis ----------
+model Atletas {
+  id                 String      @id @default(uuid()) @db.Uuid
+  usuarioId          String?     @unique @map("usuario_id") @db.Uuid
+  categoriaPadraoId  String?     @map("categoria_padrao_id") @db.Uuid
+  nome               String
+  dataNascimento     DateTime?   @map("data_nascimento") @db.Date
+  genero             GeneroAtleta?
+  documento          String?
+  telefone           String?
+  email              String?
+  criadoEm           DateTime    @default(now()) @map("criado_em") @db.Timestamptz
+
+  usuario    Usuarios?    @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  categoria  Categorias?  @relation(fields: [categoriaPadraoId], references: [id], onDelete: SetNull)
+  inscricoes Inscricoes[]
+  responsaveis ResponsavelAtleta[]
+
+  @@map("atletas")
+}
+
+model ResponsavelAtleta {
+  id                     String @id @default(uuid()) @db.Uuid
+  responsavelUsuarioId   String @map("responsavel_usuario_id") @db.Uuid
+  atletaId               String @map("atleta_id") @db.Uuid
+  parentesco             String?
+
+  responsavel Usuarios @relation(fields: [responsavelUsuarioId], references: [id], onDelete: Cascade)
+  atleta      Atletas  @relation(fields: [atletaId], references: [id], onDelete: Cascade)
+
+  @@unique([responsavelUsuarioId, atletaId])
+  @@map("responsavel_atleta")
+}
+
+// ---------- Inscrições / Financeiro ----------
+model Inscricoes {
+  id             String           @id @default(uuid()) @db.Uuid
+  atletaId       String           @map("atleta_id") @db.Uuid
+  provaId        String           @map("prova_id") @db.Uuid
+  loteInscricaoId String?          @map("lote_inscricao_id") @db.Uuid
+  equipeId       String?          @map("equipe_id") @db.Uuid
+  status         InscricaoStatus  @default(pendente)
+  numeroPeito    String?          @map("numero_peito")
+  dataInscricao  DateTime         @default(now()) @map("data_inscricao") @db.Timestamptz
+
+  atleta       Atletas          @relation(fields: [atletaId], references: [id], onDelete: Restrict)
+  prova        Provas           @relation(fields: [provaId], references: [id], onDelete: Cascade)
+  lote         LotesInscricao?  @relation(fields: [loteInscricaoId], references: [id], onDelete: SetNull)
+  equipe       Equipes?         @relation(fields: [equipeId], references: [id], onDelete: SetNull)
+
+  itensPagamento ItensPagamento[]
+  dorsais        Dorsais[]
+  checkIns       CheckIns[]
+  entregas       Entregas[]
+  resultados     Resultados[]
+
+  @@unique([atletaId, provaId])
+  @@map("inscricoes")
+}
+
+model Pagamentos {
+  id            String           @id @default(uuid()) @db.Uuid
+  pagoPor       String?          @map("pago_por") @db.Uuid
+  valorTotal    Decimal          @default(0) @map("valor_total") @db.Decimal(10, 2)
+  formaPagamento FormaPagamento?
+  status        PagamentoStatus  @default(pendente)
+  dataPagamento DateTime?        @map("data_pagamento") @db.Date
+
+  itensPagamento ItensPagamento[]
+
+  @@map("pagamentos")
+}
+
+model ItensPagamento {
+  id            String   @id @default(uuid()) @db.Uuid
+  pagamentoId   String   @map("pagamento_id") @db.Uuid
+  inscricaoId   String   @map("inscricao_id") @db.Uuid
+  valor         Decimal  @db.Decimal(10, 2)
+
+  pagamento Pagamentos @relation(fields: [pagamentoId], references: [id], onDelete: Cascade)
+  inscricao Inscricoes @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+
+  @@map("itens_pagamento")
+}
+
+// ---------- Dorsais / Check-in / Entregas ----------
+model FaixasNumeracao {
+  id             String   @id @default(uuid()) @db.Uuid
+  eventoId       String   @map("evento_id") @db.Uuid
+  categoriaId    String   @map("categoria_id") @db.Uuid
+  numeroInicial  Int      @map("numero_inicial")
+  numeroFinal    Int      @map("numero_final")
+  cor            String   @default("azul")
+
+  evento    Eventos   @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  categoria Categorias @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+
+  @@unique([eventoId, categoriaId])
+  @@map("faixas_numeracao")
+}
+
+model Dorsais {
+  id           String   @id @default(uuid()) @db.Uuid
+  inscricaoId  String   @unique @map("inscricao_id") @db.Uuid
+  eventoId     String   @map("evento_id") @db.Uuid
+  numero       Int
+  atribuidoEm  DateTime @default(now()) @map("atribuido_em") @db.Timestamptz
+
+  inscricao Inscricoes @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+  evento    Eventos    @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@unique([eventoId, numero])
+  @@map("dorsais")
+}
+
+model CheckIns {
+  id             String   @id @default(uuid()) @db.Uuid
+  inscricaoId    String   @unique @map("inscricao_id") @db.Uuid
+  confirmadoEm   DateTime @default(now()) @map("confirmado_em") @db.Timestamptz
+  confirmadoPor  String?  @map("confirmado_por") @db.Uuid
+
+  inscricao Inscricoes @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+
+  @@map("check_ins")
+}
+
+model Entregas {
+  id            String   @id @default(uuid()) @db.Uuid
+  inscricaoId   String   @map("inscricao_id") @db.Uuid
+  tipoEntregaId String   @map("tipo_entrega_id") @db.Uuid
+  entregue      Boolean  @default(false)
+  entregueEm    DateTime? @map("entregue_em") @db.Timestamptz
+  registradoPor String?  @map("registrado_por") @db.Uuid
+
+  inscricao  Inscricoes    @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+  tipoEntrega TiposEntrega @relation(fields: [tipoEntregaId], references: [id], onDelete: Restrict)
+
+  @@unique([inscricaoId, tipoEntregaId])
+  @@map("entregas")
+}
+
+// ---------- Resultados ----------
+model Resultados {
+  id             String         @id @default(uuid()) @db.Uuid
+  inscricaoId    String         @unique @map("inscricao_id") @db.Uuid
+  tempoMs        BigInt?        @map("tempo_ms")
+  pontuacao      Decimal?       @db.Decimal(10, 2)
+  status         ResultadoStatus @default(finalizado)
+  observacao     String?
+  registradoPor  String?        @map("registrado_por") @db.Uuid
+  atualizadoEm   DateTime       @default(now()) @map("atualizado_em") @db.Timestamptz
+
+  inscricao Inscricoes @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+
+  @@map("resultados")
+}
+
+model ResultadosPublicacoes {
+  id           String   @id @default(uuid()) @db.Uuid
+  provaId      String   @unique @map("prova_id") @db.Uuid
+  publicadoEm  DateTime @default(now()) @map("publicado_em") @db.Timestamptz
+  publicadoPor String?  @map("publicado_por") @db.Uuid
+
+  prova Provas @relation(fields: [provaId], references: [id], onDelete: Cascade)
+
+  @@map("resultados_publicacoes")
+}
+
+// ---------- Galeria ----------
+model GaleriaImagens {
+  id           String             @id @default(uuid()) @db.Uuid
+  eventoId     String             @map("evento_id") @db.Uuid
+  categoria    CategoriaImagem
+  nome         String
+  storagePath  String             @map("storage_path")
+  visibilidade VisibilidadeImagem @default(privada)
+  enviadoPor   String?            @map("enviado_por") @db.Uuid
+  criadoEm     DateTime           @default(now()) @map("criado_em") @db.Timestamptz
+
+  evento Eventos @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@map("galeria_imagens")
+}
