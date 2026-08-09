@@ -315,5 +315,9 @@ begin
       'create policy %I on public.%I for all using (true) with check (true)',
       t || '_todos', t
     );
+    execute format(
+      'grant select, insert, update, delete on public.%I to anon, authenticated',
+      t
+    );
   end loop;
 end $$;
