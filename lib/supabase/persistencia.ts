@@ -10,7 +10,7 @@
 // Como as tabelas usam snake_case e as telas camelCase, esta camada
 // converte automaticamente nas duas direções.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Linha = Record<string, unknown>;
@@ -63,32 +63,43 @@ export async function carregar<T>(
   }
 }
 
-// Grava o array completo na tabela (upsert). Quando o array está vazio,
-// remove todas as linhas da tabela (`chaveColuna` é a coluna de
-// identidade em snake_case). Falhas são registradas no console sem
-// derrubar a UI — o estado em memória continua funcionando.
+// Grava as linhas na tabela, uma por uma, e retorna `true` se tudo foi
+// persistido. Quando o array está vazio, remove todas as linhas
+// (`chaveColuna` é a coluna de identidade em snake_case). O upsert
+// individual é necessário porque o PostgREST exige que todas as linhas de
+// um array tenham as mesmas chaves: linhas recém-criadas nas telas têm
+// menos campos que as carregadas do banco, e o array misto fazia o
+// PostgREST preencher as chaves ausentes com NULL, violando colunas
+// `not null default ''` (erro 400). No upsert individual, campos ausentes
+// usam o default na criação e são preservados na edição (merge).
 export async function gravarLinhas<T>(
   tabela: string,
   linhas: T[],
   chaveColuna: string = "id"
-): Promise<void> {
+): Promise<boolean> {
   try {
     const supabase = createClient();
     if (linhas.length === 0) {
       const { error } = await supabase.from(tabela).delete().neq(chaveColuna, "");
       if (error && error.code !== "42P01") {
         console.warn(`[persistencia] limpar tabela ${tabela}:`, error.message);
+        return false;
       }
-      return;
+      return true;
     }
-    const { error } = await supabase
-      .from(tabela)
-      .upsert(linhas.map((l) => limparJson(camelParaSnake(l as Linha))));
-    if (error && error.code !== "42P01") {
-      console.warn(`[persistencia] gravar ${tabela}:`, error.message);
+    for (const linha of linhas) {
+      const { error } = await supabase
+        .from(tabela)
+        .upsert(limparJson(camelParaSnake(linha as Linha)));
+      if (error && error.code !== "42P01") {
+        console.warn(`[persistencia] gravar ${tabela}:`, error.message);
+        return false;
+      }
     }
+    return true;
   } catch (err) {
     console.warn(`[persistencia] falha ao gravar ${tabela}:`, err);
+    return false;
   }
 }
 
@@ -117,25 +128,44 @@ export function usePersistencia<T>(
   const [pronto, setPronto] = useState(false);
   const prontoRef = useRef(false);
   const ultimoSincronizadoRef = useRef<T[]>(estadoInicial);
+  const usuarioEditouRef = useRef(false);
+
+  // Marca que o usuário já alterou dados antes de a carga terminar, para
+  // a carga não sobrescrever essas edições (as mudanças são sincronizadas
+  // logo em seguida pela lógica de persistência).
+  const setDadosComControle = useCallback(
+    (atualizacao: T[] | ((anterior: T[]) => T[])) => {
+      usuarioEditouRef.current = true;
+      setDados(atualizacao);
+    },
+    []
+  );
 
   useEffect(() => {
     let ativo = true;
     carregar<T>(tabela, ordem)
       .then((linhas) => {
         if (!ativo || linhas === null) return;
-        prontoRef.current = true;
+        if (usuarioEditouRef.current) return;
         ultimoSincronizadoRef.current = linhas;
         setDados(linhas);
       })
       .catch(() => {})
       .finally(() => {
-        if (ativo) prontoRef.current = true;
+        if (ativo) {
+          prontoRef.current = true;
+          setPronto(true);
+        }
       });
     return () => {
       ativo = false;
     };
   }, [tabela, ordem]);
 
+  // Sincroniza as mudanças de `dados` com o banco. Só avança a linha de
+  // base (`ultimoSincronizadoRef`) quando a gravação teve sucesso: assim,
+  // uma falha não "esconde" dados não persistidos (que seriam perdidos ao
+  // recarregar a página) e a próxima mudança tenta sincronizar de novo.
   useEffect(() => {
     if (!prontoRef.current) return;
     const anterior = ultimoSincronizadoRef.current;
@@ -146,17 +176,23 @@ export function usePersistencia<T>(
     const chaveDepois = new Set(dados.map((x) => (x as Linha)[chave] as string));
     const removidos = [...chaveAntes].filter((id) => !chaveDepois.has(id));
 
-    if (removidos.length > 0) {
-      const supabase = createClient();
-      supabase.from(tabela).delete().in(idColuna, removidos).then(({ error }) => {
-        if (error && error.code !== "42P01") {
-          console.warn(`[persistencia] remover ${tabela}:`, error.message);
-        }
-      });
-    }
-    gravarLinhas<T>(tabela, dados, idColuna);
-    ultimoSincronizadoRef.current = dados;
-  }, [tabela, dados, idCampo, idColuna]);
+    const remocao =
+      removidos.length > 0
+        ? createClient().from(tabela).delete().in(idColuna, removidos)
+        : Promise.resolve({ error: null });
 
-  return { dados, setDados, pronto };
+    Promise.all([remocao, gravarLinhas<T>(tabela, dados, idColuna)]).then(
+      ([{ error: erroRemocao }, gravado]) => {
+        const falhouRemocao = !!erroRemocao && erroRemocao.code !== "42P01";
+        if (falhouRemocao) {
+          console.warn(`[persistencia] remover ${tabela}:`, erroRemocao.message);
+        }
+        if (gravado && !falhouRemocao) {
+          ultimoSincronizadoRef.current = dados;
+        }
+      }
+    );
+  }, [tabela, dados, idCampo, idColuna, pronto]);
+
+  return { dados, setDados: setDadosComControle, pronto };
 }
