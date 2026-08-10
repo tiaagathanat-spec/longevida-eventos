@@ -35,9 +35,13 @@ function camelParaSnake(linha: Linha): Linha {
   return saida;
 }
 
+// Omite campos `undefined` em vez de transformá-los em `null`: as
+// tabelas-espelho usam `not null default ''`, e enviar `null` explícito
+// viola a restrição (erro 400). Ao omitir a chave, o PostgREST aplica o
+// default na criação e preserva o valor existente na edição (merge).
 function limparJson<T>(valor: T): T {
   return JSON.parse(
-    JSON.stringify(valor, (_chave, item) => (item === undefined ? null : item))
+    JSON.stringify(valor, (_chave, item) => (item === undefined ? undefined : item))
   ) as T;
 }
 
