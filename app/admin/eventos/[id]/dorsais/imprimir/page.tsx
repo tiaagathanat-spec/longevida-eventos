@@ -52,7 +52,13 @@ export default function ImprimirDorsaisPage() {
   const { listarPorEvento: listarImagensDoEvento } = useGaleria();
 
   const evento = obterEvento(eventoId);
-  const logo = evento?.logoUrl || listarImagensDoEvento(eventoId).find((img) => img.categoria === "logo")?.url;
+  const imagensDoEvento = listarImagensDoEvento(eventoId);
+  const logo =
+    evento?.logoUrl ||
+    imagensDoEvento.find((img) => img.categoria === "logo")?.url;
+  const capa =
+    imagensDoEvento.find((img) => img.categoria === "capa")?.url ||
+    imagensDoEvento.find((img) => img.categoria === "banner")?.url;
 
   const cartoes = useMemo(() => {
     return inscricoes
@@ -125,6 +131,7 @@ export default function ImprimirDorsaisPage() {
                   categoriaNome={grupoNome}
                   eventoNome={evento.nome}
                   dataEvento={formatarData(evento.data)}
+                  capaUrl={capa}
                   logoUrl={logo}
                   cor={cor}
                   medalhaEntregue={dorsal!.medalhaEntregue}
