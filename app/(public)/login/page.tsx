@@ -39,7 +39,7 @@ export default function LoginPage() {
       });
 
       if (error) {
-        setErro("E-mail ou senha incorretos. Tente novamente.");
+        setErro(mensagemErro(error.message, email));
         return;
       }
 
@@ -76,6 +76,14 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function mensagemErro(mensagem: string, email: string) {
+    const m = mensagem.toLowerCase();
+    if (m.includes("not confirmed") || m.includes("confirm")) {
+      return `Seu e-mail (${email}) ainda não foi confirmado. Abra o e-mail de confirmação enviado no cadastro e clique no link — verifique também a caixa de spam/lixo eletrônico.`;
+    }
+    return "E-mail ou senha incorretos. Tente novamente.";
   }
 
   async function destinoPorPerfil(supabase: ReturnType<typeof createClient>, usuarioId: string) {

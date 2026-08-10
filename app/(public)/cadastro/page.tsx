@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Check,
   Camera,
+  MailCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { usePerfis, type TipoContaCadastro } from "@/lib/mock/perfis-store";
@@ -398,11 +399,28 @@ export default function CadastroPage() {
           </ol>
 
           {sucesso ? (
-            <div className="mt-8 rounded-2xl border border-brand-green/30 bg-brand-green/10 p-6 text-center">
-              <p className="text-sm text-brand-green">{sucesso}</p>
-              <Link href="/login" className="mt-4 inline-block">
-                <Button>Ir para o login</Button>
-              </Link>
+            <div className="mt-8 flex flex-col gap-4">
+              <div className="rounded-2xl border border-brand-green/30 bg-brand-green/10 p-6 text-center">
+                <p className="text-sm text-brand-green">{sucesso}</p>
+                <Link href="/login" className="mt-4 inline-block">
+                  <Button>Ir para o login</Button>
+                </Link>
+              </div>
+              <div
+                role="note"
+                className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-left text-sm leading-relaxed text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-300"
+              >
+                <p className="flex items-start gap-2.5">
+                  <MailCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    <strong className="font-bold">Primeiro acesso:</strong> o seu login só será
+                    liberado depois que o e-mail de confirmação for aberto e confirmado. Abra a
+                    mensagem que enviamos para{" "}
+                    <span className="font-semibold">{perfil.email.trim()}</span> e clique no link
+                    para confirmar. Se não encontrar, verifique a caixa de spam/lixo eletrônico.
+                  </span>
+                </p>
+              </div>
             </div>
           ) : (
             <>

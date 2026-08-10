@@ -249,7 +249,7 @@ export default function VisualizarEventoPage() {
       </div>
 
       {/* Atalhos para configuração do evento */}
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-8">
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
         <Link
           href={`/admin/eventos/${evento.id}/provas`}
           className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 hover:border-brand-blue/40 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"

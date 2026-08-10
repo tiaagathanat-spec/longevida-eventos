@@ -7,7 +7,6 @@ import {
   CalendarDays,
   Timer,
   Settings,
-  LogOut,
   ShieldCheck,
   Lock,
 } from "lucide-react";
@@ -91,7 +90,7 @@ export function OrganizacaoSidebar() {
           </span>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
           {navPermitido.map(({ href, label, icon: Icon }) => {
             const active =
               pathname === href ||
@@ -100,7 +99,7 @@ export function OrganizacaoSidebar() {
               <Link
                 key={href}
                 href={href}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                   active
                     ? "bg-gradient-to-r from-brand-green to-lime-500 text-white shadow-md shadow-brand-green/20"
                     : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -127,17 +126,6 @@ export function OrganizacaoSidebar() {
               </div>
             </div>
           )}
-        </div>
-
-        <div className="flex flex-col gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
-          <TrocadorDePerfil />
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-slate-300 dark:hover:bg-red-950/40 dark:hover:text-red-400"
-          >
-            <LogOut className="h-[18px] w-[18px]" strokeWidth={2} />
-            Sair
-          </button>
         </div>
 
         {!temFinanceiro && (
