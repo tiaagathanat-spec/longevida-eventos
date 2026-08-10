@@ -110,32 +110,48 @@ export default function ImprimirDorsaisPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 print:grid-cols-3 print:gap-3">
+        <div className="flex flex-col items-center gap-8">
           {cartoes.map(({ inscricao, grupoNome, cor, dorsal }) => (
-            <CartaoComQr
+            // Um dorsal por folha, tamanho físico final de 19 cm x 14,5 cm
+            <div
               key={inscricao.id}
-              inscricaoId={inscricao.id}
-              numero={dorsal!.numero}
-              atletaNome={inscricao.atletaNome}
-              categoriaNome={grupoNome}
-              eventoNome={evento.nome}
-              dataEvento={formatarData(evento.data)}
-              logoUrl={logo}
-              cor={cor}
-              medalhaEntregue={dorsal!.medalhaEntregue}
-              alimentacaoEntregue={dorsal!.alimentacaoEntregue}
-              kitEntregue={dorsal!.kitEntregue}
-            />
+              className="dorsal-pagina-imprimir flex w-full items-center justify-center break-inside-avoid"
+            >
+              <div className="dorsal-card-tamanho h-[14.5cm] w-[19cm] shrink-0">
+                <CartaoComQr
+                  inscricaoId={inscricao.id}
+                  numero={dorsal!.numero}
+                  atletaNome={inscricao.atletaNome}
+                  categoriaNome={grupoNome}
+                  eventoNome={evento.nome}
+                  dataEvento={formatarData(evento.data)}
+                  logoUrl={logo}
+                  cor={cor}
+                  medalhaEntregue={dorsal!.medalhaEntregue}
+                  alimentacaoEntregue={dorsal!.alimentacaoEntregue}
+                  kitEntregue={dorsal!.kitEntregue}
+                />
+              </div>
+            </div>
           ))}
         </div>
       )}
 
-      {/* Ajustes específicos de impressão: página A4, sem quebrar cards ao meio */}
+      {/* Impressão: cada dorsal ocupa uma folha A4 e mede exatamente
+          19 cm de largura por 14,5 cm de altura (o card já é dimensionado
+          com essas medidas na tela, então o preview reflete o resultado). */}
       <style jsx global>{`
         @media print {
           @page {
             size: A4;
-            margin: 12mm;
+            margin: 0;
+          }
+          .dorsal-pagina-imprimir {
+            height: 29.7cm;
+            page-break-after: always;
+          }
+          .dorsal-pagina-imprimir:last-child {
+            page-break-after: auto;
           }
         }
       `}</style>
