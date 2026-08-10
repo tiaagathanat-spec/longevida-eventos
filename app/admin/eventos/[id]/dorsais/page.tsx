@@ -331,6 +331,7 @@ export default function DorsaisDoEventoPage() {
                   <th className="px-4 py-3 font-medium">
                     {criterio === "categoria" ? "Categoria" : "Faixa etária"}
                   </th>
+                  <th className="px-4 py-3 font-medium">Check-in</th>
                   <th className="px-4 py-3 font-medium">Kit</th>
                   <th className="px-4 py-3 font-medium">Medalha</th>
                   <th className="px-4 py-3 font-medium">Alimentação</th>
@@ -347,6 +348,17 @@ export default function DorsaisDoEventoPage() {
                     </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       {grupoNome}
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        disabled={!dorsal}
+                        checked={dorsal?.checkInFeito ?? false}
+                        onChange={(e) =>
+                          atualizarControles(inscricao.id, { checkInFeito: e.target.checked })
+                        }
+                        className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue/30"
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <input

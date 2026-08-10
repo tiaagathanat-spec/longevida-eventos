@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Clock3,
   Lock,
+  Download,
 } from "lucide-react";
 import {
   useEventos,
@@ -206,14 +207,22 @@ export default function EventoPublicoPage() {
               <a
                 key={doc.id}
                 href={doc.url}
-                target="_blank"
-                rel="noreferrer"
+                {...(doc.tipo === "pdf"
+                  ? { download: doc.nome }
+                  : { target: "_blank", rel: "noreferrer" })}
                 className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 transition-colors hover:border-brand-green/50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
               >
                 <FileText className="h-4 w-4 text-brand-blue" />
                 {doc.nome}
-                <span className="ml-auto text-xs text-slate-400">
-                  {doc.tipo === "pdf" ? "PDF" : "Imagem"}
+                <span className="ml-auto flex items-center gap-1 text-xs text-slate-400">
+                  {doc.tipo === "pdf" ? (
+                    <>
+                      PDF
+                      <Download className="h-3.5 w-3.5" />
+                    </>
+                  ) : (
+                    "Imagem"
+                  )}
                 </span>
               </a>
             ))}

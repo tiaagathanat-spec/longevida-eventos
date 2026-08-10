@@ -1,6 +1,7 @@
 import { COR_FAIXA_HEX, CorFaixa } from "@/lib/mock/faixas-numeracao-store";
 import { QrCodeImagem } from "@/components/qrcode/qr-code-imagem";
 import { LogoLongevida } from "@/components/brand/logo-longevida";
+import { Check } from "lucide-react";
 
 type CartaoDorsalProps = {
   numero: number;
@@ -38,14 +39,14 @@ export function CartaoDorsal({
 
   return (
     <div className="relative flex h-full w-full overflow-hidden rounded-xl border border-slate-300 bg-white">
-      {/* Margem lateral esquerda: cor da categoria + entregas na vertical */}
+      {/* Margem lateral esquerda: cor da categoria + marcações de entrega */}
       <div
-        className="flex w-[1.9cm] shrink-0 flex-col items-center justify-center gap-5"
+        className="flex w-[1.8cm] shrink-0 flex-col items-center justify-center gap-6"
         style={{ backgroundColor: corHex }}
       >
-        <MarcadorVertical entregue={kitEntregue} label="Kit" />
-        <MarcadorVertical entregue={medalhaEntregue} label="Medalha" />
-        <MarcadorVertical entregue={alimentacaoEntregue} label="Alim." />
+        <MarcadorQuadrado entregue={kitEntregue} titulo="Kit" />
+        <MarcadorQuadrado entregue={medalhaEntregue} titulo="Medalha" />
+        <MarcadorQuadrado entregue={alimentacaoEntregue} titulo="Alimentação" />
       </div>
 
       {/* Área central */}
@@ -130,19 +131,21 @@ export function CartaoDorsal({
   );
 }
 
-// Marcação de entrega na vertical: quando entregue, fica preenchida e com
-// "✓"; quando pendente, aparece discreta (contorno + fundo escuro suave).
-function MarcadorVertical({ entregue, label }: { entregue: boolean; label: string }) {
+// Marcação de entrega: um quadrado vazio que fica preenchido com ✓ quando
+// a entrega foi feita. O significado aparece no `title` (desktop) e no
+// aria-label; na impressão ficam apenas os quadrados, sem texto.
+function MarcadorQuadrado({ entregue, titulo }: { entregue: boolean; titulo: string }) {
   return (
     <div
-      className={`-rotate-90 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide ${
+      title={titulo}
+      aria-label={titulo}
+      className={`flex h-[1.05cm] w-[1.05cm] items-center justify-center rounded-md border-2 ${
         entregue
-          ? "bg-white text-brand-green shadow-sm"
-          : "border border-white/50 bg-black/25 text-white"
+          ? "border-white bg-white text-brand-green"
+          : "border-white/70 bg-transparent"
       }`}
     >
-      {entregue ? "✓ " : ""}
-      {label}
+      {entregue ? <Check className="h-5 w-5" strokeWidth={3} /> : null}
     </div>
   );
 }

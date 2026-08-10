@@ -24,6 +24,7 @@ import {
   ArrowRight,
   Medal,
   Wallet,
+  Download,
 } from "lucide-react";
 import {
   useEventos,
@@ -118,9 +119,23 @@ export default function PortalEventoDetalhePage() {
       </Link>
 
       {capa ? (
-        <div className="mb-6 overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800">
+        <div className="relative mb-6 h-56 overflow-hidden rounded-3xl border border-slate-200 bg-slate-100 dark:border-slate-800 sm:h-72">
+          {/* Fundo desfocado para preencher os lados sem cortar a imagem */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={capa.url} alt={evento.nome} className="h-56 w-full object-cover sm:h-64" />
+          <img
+            src={capa.url}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full scale-110 object-cover opacity-40 blur-sm"
+          />
+          <div className="relative flex h-full w-full items-center justify-center p-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={capa.url}
+              alt={evento.nome}
+              className="max-h-full max-w-full object-contain drop-shadow-sm"
+            />
+          </div>
         </div>
       ) : null}
 
@@ -275,14 +290,22 @@ export default function PortalEventoDetalhePage() {
               <a
                 key={doc.id}
                 href={doc.url}
-                target="_blank"
-                rel="noreferrer"
+                {...(doc.tipo === "pdf"
+                  ? { download: doc.nome }
+                  : { target: "_blank", rel: "noreferrer" })}
                 className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 transition-colors hover:border-brand-blue/50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
               >
                 <FileText className="h-4 w-4 text-brand-blue" />
                 {doc.nome}
-                <span className="ml-auto text-xs text-slate-400">
-                  {doc.tipo === "pdf" ? "PDF" : "Imagem"}
+                <span className="ml-auto flex items-center gap-1 text-xs text-slate-400">
+                  {doc.tipo === "pdf" ? (
+                    <>
+                      PDF
+                      <Download className="h-3.5 w-3.5" />
+                    </>
+                  ) : (
+                    "Imagem"
+                  )}
                 </span>
               </a>
             ))}

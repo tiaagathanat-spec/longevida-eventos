@@ -159,6 +159,8 @@ export default function OrganizacaoInscritosPage() {
                 </th>
                 <th className="px-4 py-3 font-medium">Check-in</th>
                 <th className="px-4 py-3 font-medium">Kit</th>
+                <th className="px-4 py-3 font-medium">Medalha</th>
+                <th className="px-4 py-3 font-medium">Alimentação</th>
                 <th className="px-4 py-3 font-medium">Resultado</th>
               </tr>
             </thead>
@@ -210,15 +212,69 @@ export default function OrganizacaoInscritosPage() {
                     </label>
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        dorsal?.kitEntregue
-                          ? "bg-brand-green/10 text-brand-green"
-                          : "bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                      }`}
-                    >
-                      {dorsal?.kitEntregue ? "Entregue" : "Pendente"}
-                    </span>
+                    <label className="inline-flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={dorsal?.kitEntregue ?? false}
+                        onChange={(e) =>
+                          atualizarControles(inscricao.id, { kitEntregue: e.target.checked })
+                        }
+                        className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
+                      />
+                      <span
+                        className={`text-xs font-medium ${
+                          dorsal?.kitEntregue
+                            ? "text-brand-green"
+                            : "text-slate-400 dark:text-slate-500"
+                        }`}
+                      >
+                        {dorsal?.kitEntregue ? "Entregue" : "Marcar"}
+                      </span>
+                    </label>
+                  </td>
+                  <td className="px-4 py-3">
+                    <label className="inline-flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={dorsal?.medalhaEntregue ?? false}
+                        onChange={(e) =>
+                          atualizarControles(inscricao.id, { medalhaEntregue: e.target.checked })
+                        }
+                        className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
+                      />
+                      <span
+                        className={`text-xs font-medium ${
+                          dorsal?.medalhaEntregue
+                            ? "text-brand-green"
+                            : "text-slate-400 dark:text-slate-500"
+                        }`}
+                      >
+                        {dorsal?.medalhaEntregue ? "Entregue" : "Marcar"}
+                      </span>
+                    </label>
+                  </td>
+                  <td className="px-4 py-3">
+                    <label className="inline-flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={dorsal?.alimentacaoEntregue ?? false}
+                        onChange={(e) =>
+                          atualizarControles(inscricao.id, {
+                            alimentacaoEntregue: e.target.checked,
+                          })
+                        }
+                        className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
+                      />
+                      <span
+                        className={`text-xs font-medium ${
+                          dorsal?.alimentacaoEntregue
+                            ? "text-brand-green"
+                            : "text-slate-400 dark:text-slate-500"
+                        }`}
+                      >
+                        {dorsal?.alimentacaoEntregue ? "Entregue" : "Marcar"}
+                      </span>
+                    </label>
                   </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                     {resultado?.tempo || "—"}
