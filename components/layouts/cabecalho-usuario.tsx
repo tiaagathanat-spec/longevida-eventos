@@ -2,19 +2,16 @@
 
 // Cabeçalho superior das áreas Admin e Organização (desktop).
 //
-// Concentra no canto superior direito o avatar do usuário atual (iniciais),
-// o seletor de perfis e o logout. No mobile essa função é do MenuMobile
-// (barra superior + drawer), então aqui o cabeçalho só aparece a partir de lg.
+// Concentra no canto superior direito o avatar do usuário atual (iniciais)
+// e o logout. No mobile essa função é do MenuMobile (barra superior +
+// drawer), então aqui o cabeçalho só aparece a partir de lg.
 
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import {
-  useFuncionarios,
-  PAPEL_ORGANIZACAO_LABEL,
-} from "@/lib/mock/funcionarios-store";
+import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
+import { PAPEL_ORGANIZACAO_LABEL } from "@/lib/mock/funcionarios-store";
 import { useSessao } from "@/lib/mock/sessao";
-import { TrocadorDePerfil } from "@/components/layouts/trocador-de-perfil";
 
 type CabecalhoUsuarioProps = {
   tomClasse?: string; // cor do avatar (ex.: "bg-brand-blue/10 text-brand-blue")
@@ -33,7 +30,7 @@ export function CabecalhoUsuario({
 }: CabecalhoUsuarioProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { funcionarioAtivo } = useFuncionarios();
+  const { nome: nomeOrganizacao, papel: papelOrganizacao } = useUsuarioOrganizacao();
   const { sessao } = useSessao();
 
   const emAdmin = pathname.startsWith("/admin");
@@ -41,14 +38,16 @@ export function CabecalhoUsuario({
 
   const nome = emAdmin
     ? "Administrador"
-    : emOrganizacao && funcionarioAtivo
-      ? funcionarioAtivo.nome
+    : emOrganizacao
+      ? nomeOrganizacao || sessao.nome
       : sessao.nome;
 
   const papel = emAdmin
     ? "Plataforma"
-    : emOrganizacao && funcionarioAtivo
-      ? PAPEL_ORGANIZACAO_LABEL[funcionarioAtivo.papel]
+    : emOrganizacao
+      ? papelOrganizacao
+        ? PAPEL_ORGANIZACAO_LABEL[papelOrganizacao]
+        : "Equipe"
       : "Atleta / Responsável";
 
   async function handleLogout() {
@@ -74,8 +73,6 @@ export function CabecalhoUsuario({
       </div>
 
       <div className="mx-1 hidden h-6 w-px bg-slate-200 md:block dark:bg-slate-700" />
-
-      <TrocadorDePerfil variante="navbar" />
 
       <button
         type="button"

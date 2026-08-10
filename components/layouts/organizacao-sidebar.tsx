@@ -11,13 +11,11 @@ import {
   Lock,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 import {
-  useFuncionarios,
   PAPEL_ORGANIZACAO_LABEL,
-  MODULOS_ORGANIZACAO,
   ModuloOrganizacao,
 } from "@/lib/mock/funcionarios-store";
-import { TrocadorDePerfil } from "@/components/layouts/trocador-de-perfil";
 import { MenuMobile, ItemMenuMobile } from "@/components/layouts/menu-mobile";
 
 const NAV: { href: string; label: string; icon: typeof LayoutDashboard; permissao?: ModuloOrganizacao }[] = [
@@ -33,11 +31,7 @@ const NAV: { href: string; label: string; icon: typeof LayoutDashboard; permissa
 export function OrganizacaoSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { funcionarioAtivo } = useFuncionarios();
-
-  // Sem funcionário ativo (ex: acesso direto), libera tudo.
-  const permissoes: ModuloOrganizacao[] =
-    funcionarioAtivo?.permissoes ?? MODULOS_ORGANIZACAO.map((m) => m.chave);
+  const { nome, papel, permissoes } = useUsuarioOrganizacao();
 
   const navPermitido = NAV.filter(
     (item) => !item.permissao || permissoes.includes(item.permissao)
@@ -61,20 +55,19 @@ export function OrganizacaoSidebar() {
         )}
         rodape={
           <>
-            {funcionarioAtivo && (
+            {nome && (
               <div className="flex items-start gap-2 rounded-xl bg-brand-green/10 px-3 py-2.5">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand-green" />
                 <div>
                   <p className="text-xs font-semibold text-slate-900 dark:text-white">
-                    Operando como {funcionarioAtivo.nome}
+                    Operando como {nome}
                   </p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {PAPEL_ORGANIZACAO_LABEL[funcionarioAtivo.papel]}
+                    {papel ? PAPEL_ORGANIZACAO_LABEL[papel] : "Equipe"}
                   </p>
                 </div>
               </div>
             )}
-            <TrocadorDePerfil variante="navbar" />
           </>
         }
         onLogout={handleLogout}
@@ -113,15 +106,15 @@ export function OrganizacaoSidebar() {
         </nav>
 
         <div className="mb-4 flex flex-col gap-1">
-          {funcionarioAtivo && (
+          {nome && (
             <div className="flex items-start gap-2 rounded-xl bg-brand-green/10 px-3 py-2.5">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand-green" />
               <div>
                 <p className="text-xs font-semibold text-slate-900 dark:text-white">
-                  Operando como {funcionarioAtivo.nome}
+                  Operando como {nome}
                 </p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {PAPEL_ORGANIZACAO_LABEL[funcionarioAtivo.papel]}
+                  {papel ? PAPEL_ORGANIZACAO_LABEL[papel] : "Equipe"}
                 </p>
               </div>
             </div>

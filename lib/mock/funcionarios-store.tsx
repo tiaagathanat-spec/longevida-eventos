@@ -9,16 +9,14 @@
 // Corresponde às tabelas `usuarios` (tipo_conta = 'staff') +
 // `organizacao_usuarios` da modelagem de produção.
 //
-// No demo, o admin cadastra o funcionário e usa "Entrar como" para abrir
-// a área de Organização já operando como ele. O vínculo ativo fica no
-// localStorage da aba para sobreviver a navegações.
+// O papel efetivo do usuário logado dentro da área de Organização vem do
+// vínculo `organizacao_usuarios` (ver useUsuarioOrganizacao). Aqui ficam
+// apenas o cadastro/edição da equipe feitos pelo Admin.
 
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
-  useState,
   ReactNode,
 } from "react";
 import { usePersistencia } from "@/lib/supabase/persistencia";
@@ -111,14 +109,9 @@ type FuncionariosContextValue = {
   atualizar: (id: string, dados: Omit<Funcionario, "id">) => void;
   atualizarPermissoes: (id: string, permissoes: ModuloOrganizacao[]) => void;
   excluir: (id: string) => void;
-  funcionarioAtivo: Funcionario | null;
-  entrarComo: (id: string) => void;
-  sairComo: () => void;
 };
 
 const FuncionariosContext = createContext<FuncionariosContextValue | null>(null);
-
-const CHAVE_ARMAZENAMENTO = "longevida:funcionario-ativo";
 
 const FUNCIONARIOS_INICIAIS: Funcionario[] = [
   {
@@ -175,33 +168,6 @@ export function FuncionariosProvider({ children }: { children: ReactNode }) {
     FUNCIONARIOS_INICIAIS,
     { ordem: "id" }
   );
-  const [funcionarioAtivoId, setFuncionarioAtivoId] = useState<string | null>(null);
-
-  // Carrega o "entrar como" persistido na aba (demo) ao iniciar.
-  useEffect(() => {
-    try {
-      const salvo = window.localStorage.getItem(CHAVE_ARMAZENAMENTO);
-      if (salvo) setFuncionarioAtivoId(salvo);
-    } catch {
-      // localStorage indisponível — segue sem vínculo ativo.
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      if (funcionarioAtivoId) {
-        window.localStorage.setItem(CHAVE_ARMAZENAMENTO, funcionarioAtivoId);
-      } else {
-        window.localStorage.removeItem(CHAVE_ARMAZENAMENTO);
-      }
-    } catch {
-      // localStorage indisponível — segue apenas em memória.
-    }
-  }, [funcionarioAtivoId]);
-
-  const funcionarioAtivo = funcionarioAtivoId
-    ? funcionarios.find((f) => f.id === funcionarioAtivoId) ?? null
-    : null;
 
   const value = useMemo<FuncionariosContextValue>(
     () => ({
@@ -224,13 +190,9 @@ export function FuncionariosProvider({ children }: { children: ReactNode }) {
       },
       excluir: (id) => {
         setFuncionarios((atual) => atual.filter((f) => f.id !== id));
-        setFuncionarioAtivoId((atualId) => (atualId === id ? null : atualId));
       },
-      funcionarioAtivo,
-      entrarComo: (id) => setFuncionarioAtivoId(id),
-      sairComo: () => setFuncionarioAtivoId(null),
     }),
-    [funcionarios, funcionarioAtivo]
+    [funcionarios]
   );
 
   return (

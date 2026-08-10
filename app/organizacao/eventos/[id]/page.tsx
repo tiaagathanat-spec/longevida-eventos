@@ -19,11 +19,8 @@ import { useProvas } from "@/lib/mock/provas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
-import {
-  useFuncionarios,
-  MODULOS_ORGANIZACAO,
-  ModuloOrganizacao,
-} from "@/lib/mock/funcionarios-store";
+import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
+import { ModuloOrganizacao } from "@/lib/mock/funcionarios-store";
 
 const MODULOS: {
   href: string;
@@ -92,10 +89,7 @@ export default function OrganizacaoEventoPage() {
   const { inscricoes } = useInscricoes();
   const { obterPorInscricao } = useResultados();
   const { obterPorInscricao: obterDorsal } = useDorsais();
-  const { funcionarioAtivo } = useFuncionarios();
-
-  const permissoes: ModuloOrganizacao[] =
-    funcionarioAtivo?.permissoes ?? MODULOS_ORGANIZACAO.map((m) => m.chave);
+  const { permissoes } = useUsuarioOrganizacao();
 
   const modulosPermitidos = MODULOS.filter(
     (modulo) => !modulo.permissao || permissoes.includes(modulo.permissao)

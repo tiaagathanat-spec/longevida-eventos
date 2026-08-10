@@ -23,7 +23,7 @@ import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useResultados } from "@/lib/mock/resultados-store";
-import { useFuncionarios } from "@/lib/mock/funcionarios-store";
+import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,7 +59,7 @@ export default function ResultadosPage() {
   const { inscricoes } = useInscricoes();
   const { resultados, obterPorInscricao, aprovar, rejeitar, voltarParaRevisao } =
     useResultados();
-  const { funcionarioAtivo } = useFuncionarios();
+  const { nome } = useUsuarioOrganizacao();
 
   const [eventoId, setEventoId] = useState("");
   const [provaId, setProvaId] = useState("");
@@ -107,7 +107,7 @@ export default function ResultadosPage() {
   const prova = provas.find((p) => p.id === provaId);
 
   function handleAprovar(inscricaoId: string) {
-    aprovar(inscricaoId, funcionarioAtivo?.nome ?? "Admin");
+    aprovar(inscricaoId, nome || "Admin");
   }
 
   function abrirRejeicao(inscricaoId: string) {
@@ -122,7 +122,7 @@ export default function ResultadosPage() {
       setErroMotivo(true);
       return;
     }
-    rejeitar(rejeitandoId, motivoRejeicao.trim(), funcionarioAtivo?.nome ?? "Admin");
+    rejeitar(rejeitandoId, motivoRejeicao.trim(), nome || "Admin");
     setRejeitandoId(null);
     setMotivoRejeicao("");
     setErroMotivo(false);

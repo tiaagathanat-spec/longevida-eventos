@@ -1,18 +1,25 @@
 "use client";
 
-// Sessão mock do Portal do Atleta.
+// Sessão do Portal do Atleta, baseada no usuário autenticado do Supabase.
 //
-// A autenticação real (Supabase Auth) fica no cookie/servidor; aqui
-// guardamos apenas o perfil exibido nas telas (nome + e-mail) para os
-// módulos mockados poderem filtrar os dados certos (Meus Atletas,
-// Minhas Inscrições, Meus Resultados).
+// A autenticação real fica no cookie/servidor (lib/supabase/middleware.ts);
+// aqui guardamos apenas o perfil exibido nas telas (nome + e-mail) para os
+// módulos mockados poderem filtrar os dados certos (Meus Atletas, Minhas
+// Inscrições, Meus Resultados).
 //
-// Começa com o responsável de demonstração ("Cláudia Costa"). Após um
-// cadastro de primeiro acesso, `definirSessao` troca para o novo
-// usuário. Substituir por `getUsuarioAtual()` (lib/auth.ts) quando o
-// login real governar os dados.
+// O nome vem do cadastro do usuário no Supabase (user_metadata) ou do
+// prefixo do e-mail. `definirSessao` é usado logo após um cadastro/edição
+// de perfil para já refletir o nome na tela.
 
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  ReactNode,
+} from "react";
+import { createClient } from "@/lib/supabase/client";
 
 export type Sessao = {
   nome: string;
@@ -26,41 +33,69 @@ type SessaoContextValue = {
 
 const SessaoContext = createContext<SessaoContextValue | null>(null);
 
-const CHAVE_SESSAO = "longevida:sessao";
+const SESSAO_VAZIA: Sessao = { nome: "", email: "" };
 
-const SESSAO_INICIAL: Sessao = {
-  nome: "Cláudia Costa",
-  email: "claudia.costa@exemplo.com",
-};
-
-// Restaura a sessão da última visita (demo). Substituir pela leitura do
-// usuário autenticado do Supabase (lib/auth.ts) quando o login real
-// governar os dados.
-function carregarSessaoSalva(): Sessao {
-  try {
-    const salva = window.localStorage.getItem(CHAVE_SESSAO);
-    if (salva) {
-      const dados = JSON.parse(salva) as Partial<Sessao>;
-      if (dados.nome && dados.email) {
-        return { nome: dados.nome, email: dados.email };
-      }
-    }
-  } catch {
-    // localStorage indisponível — segue com o padrão.
+function nomeDoUsuario(
+  metadados: Record<string, unknown> | null,
+  email: string
+): string {
+  const candidatos = ["nome", "full_name", "name"];
+  for (const chave of candidatos) {
+    const valor = metadados?.[chave];
+    if (typeof valor === "string" && valor.trim()) return valor.trim();
   }
-  return SESSAO_INICIAL;
+  const parte = email.split("@")[0] ?? "";
+  return parte;
 }
 
 export function SessaoProvider({ children }: { children: ReactNode }) {
-  const [sessao, setSessao] = useState<Sessao>(carregarSessaoSalva);
+  const [sessao, setSessao] = useState<Sessao>(SESSAO_VAZIA);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(CHAVE_SESSAO, JSON.stringify(sessao));
-    } catch {
-      // localStorage indisponível — segue apenas em memória.
+    let ativo = true;
+    const supabase = createClient();
+
+    async function sincronizarComAuth() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!ativo) return;
+      if (!user?.email) {
+        setSessao(SESSAO_VAZIA);
+        return;
+      }
+      setSessao({
+        nome: nomeDoUsuario(
+          (user.user_metadata as Record<string, unknown> | null) ?? null,
+          user.email
+        ),
+        email: user.email,
+      });
     }
-  }, [sessao]);
+
+    sincronizarComAuth();
+
+    const { data: inscricao } = supabase.auth.onAuthStateChange((_evento, session) => {
+      if (!ativo) return;
+      const user = session?.user;
+      if (!user?.email) {
+        setSessao(SESSAO_VAZIA);
+        return;
+      }
+      setSessao({
+        nome: nomeDoUsuario(
+          (user.user_metadata as Record<string, unknown> | null) ?? null,
+          user.email
+        ),
+        email: user.email,
+      });
+    });
+
+    return () => {
+      ativo = false;
+      inscricao.subscription.unsubscribe();
+    };
+  }, []);
 
   const value = useMemo<SessaoContextValue>(
     () => ({ sessao, definirSessao: setSessao }),

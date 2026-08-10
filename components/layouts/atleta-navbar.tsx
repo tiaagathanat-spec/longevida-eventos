@@ -19,7 +19,6 @@ import { createClient } from "@/lib/supabase/client";
 import { usePerfis } from "@/lib/mock/perfis-store";
 import { useSessao } from "@/lib/mock/sessao";
 import { LogoLongevida } from "@/components/brand/logo-longevida";
-import { TrocadorDePerfil } from "@/components/layouts/trocador-de-perfil";
 
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/portal/dashboard", label: "Início", icon: Home },
@@ -90,7 +89,6 @@ export function AtletaNavbar() {
               <Menu className="h-5 w-5" />
             </button>
 
-            <TrocadorDePerfil variante="navbar" />
             <button
               onClick={handleLogout}
               aria-label="Sair"
@@ -167,7 +165,6 @@ export function AtletaNavbar() {
             </nav>
 
             <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
-              <TrocadorDePerfil variante="navbar" />
               <button
                 type="button"
                 onClick={() => {

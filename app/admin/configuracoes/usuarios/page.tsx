@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import { UserPlus, Pencil, LogIn, Trash2, ShieldCheck, ExternalLink, KeyRound } from "lucide-react";
+import { UserPlus, Pencil, Trash2, KeyRound } from "lucide-react";
 import {
   useFuncionarios,
   Funcionario,
@@ -48,9 +47,7 @@ const FORM_VAZIO: FormDados = {
 };
 
 export default function UsuariosPage() {
-  const router = useRouter();
-  const { funcionarios, criar, atualizar, excluir, funcionarioAtivo, entrarComo, sairComo } =
-    useFuncionarios();
+  const { funcionarios, criar, atualizar, excluir } = useFuncionarios();
 
   const [modalAberto, setModalAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -107,11 +104,6 @@ export default function UsuariosPage() {
     }));
   }
 
-  function handleEntrarComo(f: Funcionario) {
-    entrarComo(f.id);
-    router.push("/organizacao/dashboard");
-  }
-
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
@@ -129,28 +121,6 @@ export default function UsuariosPage() {
           Novo funcionário
         </Button>
       </header>
-
-      {funcionarioAtivo && (
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-green/30 bg-brand-green/5 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="h-5 w-5 text-brand-green" />
-            <p className="text-sm text-slate-700 dark:text-slate-200">
-              Você está operando como{" "}
-              <span className="font-semibold">{funcionarioAtivo.nome}</span>{" "}
-              ({PAPEL_ORGANIZACAO_LABEL[funcionarioAtivo.papel]})
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => router.push("/organizacao/dashboard")}>
-              <ExternalLink className="h-4 w-4" />
-              Ir para a área de Organização
-            </Button>
-            <Button variant="ghost" onClick={sairComo}>
-              Voltar ao modo administrador
-            </Button>
-          </div>
-        </div>
-      )}
 
       {funcionarios.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
@@ -219,15 +189,6 @@ export default function UsuariosPage() {
                         onClick={() => abrirEdicao(f)}
                       >
                         <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        aria-label={`Entrar como ${f.nome}`}
-                        disabled={!f.ativo}
-                        onClick={() => handleEntrarComo(f)}
-                      >
-                        <LogIn className="h-4 w-4" />
-                        Entrar como
                       </Button>
                       <Button
                         variant="ghost"
@@ -348,7 +309,7 @@ export default function UsuariosPage() {
               onChange={(e) => setForm({ ...form, ativo: e.target.checked })}
               className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue/30"
             />
-            Funcionário ativo (pode entrar como organizador)
+            Funcionário ativo (pode acessar a área de organização)
           </label>
 
           {erro && <p className="text-sm text-red-500">{erro}</p>}

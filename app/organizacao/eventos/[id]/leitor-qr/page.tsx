@@ -20,7 +20,7 @@ import { useProvas } from "@/lib/mock/provas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
-import { useFuncionarios } from "@/lib/mock/funcionarios-store";
+import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 import { useQrCodes } from "@/lib/mock/qrcodes-store";
 import { LeitorQr } from "@/components/qrcode/leitor-qr";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,7 @@ export default function OrganizacaoLeitorQrPage() {
   const { inscricoes } = useInscricoes();
   const { atletas } = useAtletas();
   const { obterPorInscricao: obterDorsal, atualizarControles } = useDorsais();
-  const { funcionarioAtivo } = useFuncionarios();
+  const { nome } = useUsuarioOrganizacao();
   const { localizarPorIdentificador, registrarLeitura, alternarAtivo } = useQrCodes();
 
   const evento = obterEvento(eventoId);
@@ -106,7 +106,7 @@ export default function OrganizacaoLeitorQrPage() {
     setIdentificador(codigo);
     registrarLeitura(inscricaoEncontrada.id, {
       local: `Evento: ${evento?.nome ?? "—"}`,
-      usuario: funcionarioAtivo?.nome ?? "Operador",
+      usuario: nome || "Operador",
     });
     setLido((n) => n + 1);
   }

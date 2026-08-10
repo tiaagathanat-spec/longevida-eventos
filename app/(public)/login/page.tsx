@@ -4,18 +4,12 @@ import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { useSessao } from "@/lib/mock/sessao";
-import { usePerfis } from "@/lib/mock/perfis-store";
-import { useFuncionarios } from "@/lib/mock/funcionarios-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LogoLongevida } from "@/components/brand/logo-longevida";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { definirSessao } = useSessao();
-  const { obterPorEmail } = usePerfis();
-  const { funcionarios, entrarComo } = useFuncionarios();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -42,17 +36,6 @@ export default function LoginPage() {
         setErro(mensagemErro(error.message, email));
         return;
       }
-
-      // Sincroniza a sessão mock (Portal) e o funcionário ativo
-      // (Organização) com o e-mail logado, para que o trocador de perfil
-      // e os filtros por responsável/funcionário já comecem no lugar certo.
-      const perfil = obterPorEmail(email);
-      if (perfil) definirSessao({ nome: perfil.nome, email: perfil.email });
-
-      const funcionario = funcionarios.find(
-        (f) => f.email.toLowerCase() === email.trim().toLowerCase()
-      );
-      if (funcionario) entrarComo(funcionario.id);
 
       // Se chegamos aqui através de um link de acesso a uma rota
       // protegida (o middleware grava ?redirect=), volta para onde o

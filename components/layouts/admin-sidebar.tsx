@@ -17,7 +17,6 @@ import {
   Handshake,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { TrocadorDePerfil } from "@/components/layouts/trocador-de-perfil";
 import { MenuMobile } from "@/components/layouts/menu-mobile";
 
 const NAV = [
@@ -52,7 +51,6 @@ export function AdminSidebar() {
         rotuloClasse="bg-brand-blue/10 text-brand-blue"
         ativoClasse="from-brand-blue to-sky-500 shadow-brand-blue/20"
         itens={NAV}
-        rodape={<TrocadorDePerfil variante="navbar" />}
         onLogout={handleLogout}
       />
 

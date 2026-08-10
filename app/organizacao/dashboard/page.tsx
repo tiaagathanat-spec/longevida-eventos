@@ -21,9 +21,8 @@ import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { usePublicacoes } from "@/lib/mock/publicacoes-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
+import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 import {
-  useFuncionarios,
-  MODULOS_ORGANIZACAO,
   PAPEL_ORGANIZACAO_LABEL,
   ModuloOrganizacao,
 } from "@/lib/mock/funcionarios-store";
@@ -44,10 +43,8 @@ export default function OrganizacaoDashboardPage() {
   const { obterPorInscricao: obterResultado } = useResultados();
   const { estaPublicado } = usePublicacoes();
   const { dorsais } = useDorsais();
-  const { funcionarioAtivo } = useFuncionarios();
+  const { nome, papel, permissoes } = useUsuarioOrganizacao();
 
-  const permissoes: ModuloOrganizacao[] =
-    funcionarioAtivo?.permissoes ?? MODULOS_ORGANIZACAO.map((m) => m.chave);
   const pode = (modulo: ModuloOrganizacao) => permissoes.includes(modulo);
 
   function nomeModalidade(id: string) {
@@ -173,10 +170,10 @@ export default function OrganizacaoDashboardPage() {
         <p className="mt-1 text-sm text-white/85">
           Provas e resultados dos eventos sob sua responsabilidade.
         </p>
-        {funcionarioAtivo && (
+        {nome && (
           <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium">
-            Operando como {funcionarioAtivo.nome} ·{" "}
-            {PAPEL_ORGANIZACAO_LABEL[funcionarioAtivo.papel]}
+            Operando como {nome} ·{" "}
+            {papel ? PAPEL_ORGANIZACAO_LABEL[papel] : "Equipe"}
           </p>
         )}
       </header>

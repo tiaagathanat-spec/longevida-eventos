@@ -8,20 +8,20 @@ import {
   Info,
 } from "lucide-react";
 import {
-  useFuncionarios,
   ORGANIZACOES_DEMO,
   MODULOS_ORGANIZACAO,
   PAPEL_ORGANIZACAO_LABEL,
 } from "@/lib/mock/funcionarios-store";
+import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 
 // Tela: Configurações da Organização (sem financeiro).
 //
-// Mostra os dados da organização vinculada e o perfil do funcionário
-// ativo ("entrar como"), incluindo os módulos liberados. Ajustes de
+// Mostra os dados da organização vinculada e o perfil do usuário logado
+// na área de Organização (nome, papel e módulos liberados). Ajustes de
 // funcionários e permissões são feitos pelo Admin em /admin/funcionarios.
 
 export default function OrganizacaoConfiguracoesPage() {
-  const { funcionarioAtivo } = useFuncionarios();
+  const { nome, email, telefone, papel, permissoes } = useUsuarioOrganizacao();
   const organizacao = ORGANIZACOES_DEMO[0];
 
   return (
@@ -72,20 +72,20 @@ export default function OrganizacaoConfiguracoesPage() {
           </h2>
         </div>
 
-        {funcionarioAtivo ? (
+        {nome ? (
           <>
             <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
               <p className="font-medium text-slate-900 dark:text-white">
-                {funcionarioAtivo.nome}
+                {nome}
               </p>
               <span className="inline-flex items-center gap-1 rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-xs font-medium text-brand-blue">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                {PAPEL_ORGANIZACAO_LABEL[funcionarioAtivo.papel]}
+                {papel ? PAPEL_ORGANIZACAO_LABEL[papel] : "Equipe"}
               </span>
             </div>
             <div className="mt-1 space-y-0.5 text-sm text-slate-500 dark:text-slate-400">
-              <p>{funcionarioAtivo.email}</p>
-              <p>{funcionarioAtivo.telefone}</p>
+              <p>{email}</p>
+              {telefone && <p>{telefone}</p>}
             </div>
 
             <div className="mt-5">
@@ -94,7 +94,7 @@ export default function OrganizacaoConfiguracoesPage() {
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {MODULOS_ORGANIZACAO.map((modulo) => {
-                  const liberado = funcionarioAtivo.permissoes.includes(modulo.chave);
+                  const liberado = permissoes.includes(modulo.chave);
                   return (
                     <span
                       key={modulo.chave}
@@ -115,8 +115,7 @@ export default function OrganizacaoConfiguracoesPage() {
         ) : (
           <p className="mt-4 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
             <Info className="h-4 w-4" />
-            Nenhum funcionário ativo. Use “Entrar como” no Admin para operar como um
-            membro da organização.
+            Dados do perfil não carregados.
           </p>
         )}
       </section>
