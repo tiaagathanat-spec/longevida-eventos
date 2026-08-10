@@ -1,5 +1,6 @@
 import { COR_FAIXA_HEX, CorFaixa } from "@/lib/mock/faixas-numeracao-store";
 import { QrCodeImagem } from "@/components/qrcode/qr-code-imagem";
+import { LogoLongevida } from "@/components/brand/logo-longevida";
 
 type CartaoDorsalProps = {
   numero: number;
@@ -16,6 +17,9 @@ type CartaoDorsalProps = {
   qrcodeConteudo?: string; // identificador do QR da inscrição (lido no leitor)
 };
 
+// Dorsal final em peitoral 19cm x 14,5cm. A cor da categoria ocupa as
+// margens laterais; as entregas ficam em marcações verticais discretas na
+// margem esquerda; a capa do evento é exibida inteira (sem cortes).
 export function CartaoDorsal({
   numero,
   atletaNome,
@@ -33,99 +37,112 @@ export function CartaoDorsal({
   const corHex = COR_FAIXA_HEX[cor];
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-slate-300 bg-white">
-      {/* Identificação do evento: banner/capa da galeria (fallback: faixa colorida) */}
-      <div className="relative shrink-0 overflow-hidden" style={{ minHeight: "3.2cm" }}>
-        {capaUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={capaUrl}
-            alt={eventoNome}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : null}
-        <div
-          className="absolute inset-0"
-          style={
-            capaUrl
-              ? {
-                  background:
-                    "linear-gradient(to top, rgba(0,0,0,0.78), rgba(0,0,0,0.30) 60%, rgba(0,0,0,0.35))",
-                }
-              : { backgroundColor: corHex }
-          }
-        />
-        <div className="relative flex min-h-[3.2cm] items-center justify-between gap-3 px-6 py-3 text-white">
-          <div className="min-w-0">
-            <p className="truncate text-2xl font-extrabold uppercase leading-tight tracking-wide [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
-              {eventoNome}
-            </p>
-            <p className="truncate text-sm font-bold uppercase tracking-widest text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.6)]">
-              {categoriaNome}
-            </p>
-          </div>
-          {logoUrl ? (
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white/70 bg-white/20">
+    <div className="relative flex h-full w-full overflow-hidden rounded-xl border border-slate-300 bg-white">
+      {/* Margem lateral esquerda: cor da categoria + entregas na vertical */}
+      <div
+        className="flex w-[1.9cm] shrink-0 flex-col items-center justify-center gap-5"
+        style={{ backgroundColor: corHex }}
+      >
+        <MarcadorVertical entregue={kitEntregue} label="Kit" />
+        <MarcadorVertical entregue={medalhaEntregue} label="Medalha" />
+        <MarcadorVertical entregue={alimentacaoEntregue} label="Alim." />
+      </div>
+
+      {/* Área central */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Capa do evento — exibida inteira, sem cortes */}
+        <div className="relative h-[3.6cm] shrink-0 overflow-hidden bg-slate-100">
+          {capaUrl ? (
+            <>
+              {/* Fundo desfocado para preencher os lados sem cortar a imagem */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={capaUrl}
+                alt=""
+                aria-hidden
+                className="absolute inset-0 h-full w-full scale-110 object-cover opacity-40 blur-sm"
+              />
+              <div className="relative flex h-full w-full items-center justify-center p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={capaUrl}
+                  alt={eventoNome}
+                  className="max-h-full max-w-full object-contain drop-shadow-sm"
+                />
+              </div>
+            </>
+          ) : (
+            <div
+              className="flex h-full w-full items-center justify-center px-4"
+              style={{ backgroundColor: corHex }}
+            >
+              <span className="text-center text-2xl font-extrabold uppercase tracking-wide text-white">
+                {eventoNome}
+              </span>
+            </div>
+          )}
+          {logoUrl && (
+            <div className="absolute right-2 top-2 flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-white/80 bg-white/80 shadow-sm">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={logoUrl} alt={eventoNome} className="h-full w-full object-cover" />
             </div>
-          ) : null}
+          )}
         </div>
-      </div>
 
-      {/* Número + dados do atleta */}
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1.5 px-6 text-center">
-        <span className="text-[130px] font-black leading-none tracking-tight text-slate-900">
-          {String(numero).padStart(3, "0")}
-        </span>
-        <p className="text-2xl font-bold text-slate-900">{atletaNome}</p>
-        <p className="text-base font-medium text-slate-600">{dataEvento}</p>
-      </div>
-
-      {/* Marcadores de entrega */}
-      <div className="flex shrink-0 items-center justify-center gap-8 border-t border-slate-200 px-6 py-3 text-lg text-slate-700">
-        <span className="flex items-center gap-2">
-          <span
-            className={`flex h-6 w-6 items-center justify-center rounded border ${
-              kitEntregue ? "border-brand-green bg-brand-green text-white" : "border-slate-300"
-            }`}
-          >
-            {kitEntregue ? "✓" : ""}
-          </span>
-          Kit
-        </span>
-        <span className="flex items-center gap-2">
-          <span
-            className={`flex h-6 w-6 items-center justify-center rounded border ${
-              medalhaEntregue ? "border-brand-green bg-brand-green text-white" : "border-slate-300"
-            }`}
-          >
-            {medalhaEntregue ? "✓" : ""}
-          </span>
-          Medalha
-        </span>
-        <span className="flex items-center gap-2">
-          <span
-            className={`flex h-6 w-6 items-center justify-center rounded border ${
-              alimentacaoEntregue
-                ? "border-brand-green bg-brand-green text-white"
-                : "border-slate-300"
-            }`}
-          >
-            {alimentacaoEntregue ? "✓" : ""}
-          </span>
-          Alimentação
-        </span>
-      </div>
-
-      {qrcodeConteudo ? (
-        <div className="flex shrink-0 flex-col items-center border-t border-slate-100 px-6 py-2.5">
-          <QrCodeImagem conteudo={qrcodeConteudo} tamanho={110} />
-          <p className="mt-1.5 text-xs font-semibold uppercase tracking-widest text-slate-400">
-            Digitalize para check-in
+        {/* Nome do evento e categoria */}
+        <div className="shrink-0 border-b border-slate-200 bg-white px-3 py-1.5 text-center">
+          <p className="truncate text-base font-extrabold uppercase tracking-wide text-slate-900">
+            {eventoNome}
+          </p>
+          <p className="truncate text-xs font-semibold uppercase tracking-widest text-slate-500">
+            {categoriaNome}
           </p>
         </div>
-      ) : null}
+
+        {/* Número + dados do atleta */}
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 px-3 text-center">
+          <span className="text-[120px] font-black leading-none tracking-tight text-slate-900">
+            {String(numero).padStart(3, "0")}
+          </span>
+          <p className="text-2xl font-bold text-slate-900">{atletaNome}</p>
+          <p className="text-sm font-medium text-slate-500">{dataEvento}</p>
+        </div>
+
+        {/* QR */}
+        {qrcodeConteudo ? (
+          <div className="flex shrink-0 flex-col items-center pb-1.5 pt-0.5">
+            <QrCodeImagem conteudo={qrcodeConteudo} tamanho={96} />
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+              Digitalize para check-in
+            </p>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Margem lateral direita: cor da categoria */}
+      <div className="w-[1.2cm] shrink-0" style={{ backgroundColor: corHex }} />
+
+      {/* Marca d'água Longevida — canto inferior direito */}
+      <div className="pointer-events-none absolute bottom-2 right-[1.6cm]">
+        <LogoLongevida watermark className="h-9 w-auto opacity-20" />
+      </div>
+    </div>
+  );
+}
+
+// Marcação de entrega na vertical: quando entregue, fica preenchida e com
+// "✓"; quando pendente, aparece discreta (contorno + fundo escuro suave).
+function MarcadorVertical({ entregue, label }: { entregue: boolean; label: string }) {
+  return (
+    <div
+      className={`-rotate-90 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide ${
+        entregue
+          ? "bg-white text-brand-green shadow-sm"
+          : "border border-white/50 bg-black/25 text-white"
+      }`}
+    >
+      {entregue ? "✓ " : ""}
+      {label}
     </div>
   );
 }

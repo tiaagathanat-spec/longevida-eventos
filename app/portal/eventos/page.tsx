@@ -55,9 +55,12 @@ export default function EventosDisponiveisPage() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-medium text-slate-900 dark:text-white">
+                    <Link
+                      href={`/portal/eventos/${evento.id}`}
+                      className="text-sm font-medium text-slate-900 hover:underline dark:text-white"
+                    >
                       {evento.nome}
-                    </p>
+                    </Link>
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                         abertas
@@ -83,19 +86,27 @@ export default function EventosDisponiveisPage() {
                     </span>
                   </div>
                 </div>
-                {abertas ? (
+                <div className="flex shrink-0 items-center gap-2">
                   <Link
-                    href={`/portal/eventos/${evento.id}/inscricao`}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-green px-4 py-2.5 text-sm font-medium text-white transition-colors hover:brightness-95"
+                    href={`/portal/eventos/${evento.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:border-brand-blue/40 hover:text-brand-blue dark:border-slate-800 dark:text-slate-300"
                   >
-                    Inscrever-se
-                    <ArrowRight className="h-4 w-4" />
+                    Detalhes
                   </Link>
-                ) : (
-                  <span className="shrink-0 text-sm text-slate-400 dark:text-slate-500">
-                    {evento.status === "em_espera" ? "Em breve" : "Encerrada"}
-                  </span>
-                )}
+                  {abertas ? (
+                    <Link
+                      href={`/portal/eventos/${evento.id}/inscricao`}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-brand-green px-4 py-2.5 text-sm font-medium text-white transition-colors hover:brightness-95"
+                    >
+                      Inscrever-se
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  ) : (
+                    <span className="text-sm text-slate-400 dark:text-slate-500">
+                      {evento.status === "em_espera" ? "Em breve" : "Encerrada"}
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}
