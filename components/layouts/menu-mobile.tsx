@@ -42,7 +42,7 @@ export function MenuMobile({
   return (
     <>
       {/* Barra superior mobile */}
-      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 lg:hidden">
+      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 lg:hidden print:hidden">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">
             Longevida
