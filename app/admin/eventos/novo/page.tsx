@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useEventos, EventoStatus, EVENTO_STATUS_LABEL } from "@/lib/mock/eventos-store";
+import { CamposEndereco, EnderecoForm } from "@/components/eventos/campos-endereco";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +19,15 @@ export default function NovoEventoPage() {
   const [descricao, setDescricao] = useState("");
   const [data, setData] = useState("");
   const [local, setLocal] = useState("");
+  const [endereco, setEndereco] = useState<EnderecoForm>({
+    rua: "",
+    quadra: "",
+    lote: "",
+    cep: "",
+    setor: "",
+    cidade: "",
+    estado: "",
+  });
   const [status, setStatus] = useState<EventoStatus>("rascunho");
   const [dataLimiteInscricoes, setDataLimiteInscricoes] = useState("");
   const [vagas, setVagas] = useState("");
@@ -35,6 +45,10 @@ export default function NovoEventoPage() {
     return Object.keys(novosErros).length === 0;
   }
 
+  function atualizarEndereco(campo: keyof EnderecoForm, valor: string) {
+    setEndereco((atual) => ({ ...atual, [campo]: valor }));
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!validar()) return;
@@ -50,6 +64,13 @@ export default function NovoEventoPage() {
         status,
         dataLimiteInscricoes,
         vagas: vagas ? Number(vagas) : null,
+        enderecoRua: endereco.rua.trim() || undefined,
+        enderecoQuadra: endereco.quadra.trim() || undefined,
+        enderecoLote: endereco.lote.trim() || undefined,
+        enderecoCep: endereco.cep.trim() || undefined,
+        enderecoSetor: endereco.setor.trim() || undefined,
+        enderecoCidade: endereco.cidade.trim() || undefined,
+        enderecoEstado: endereco.estado.trim() || undefined,
       });
       router.push(`/admin/eventos/${evento.id}`);
     } catch (err) {
@@ -120,12 +141,15 @@ export default function NovoEventoPage() {
 
         <Input
           id="local"
-          label="Local"
+          label="Nome do local / referência"
           placeholder="Ex: Espaço Longevida — Piscina Olímpica"
           value={local}
           onChange={(e) => setLocal(e.target.value)}
           error={erros.local}
+          helper="Nome que aparece nas páginas do evento. Ex: nome da piscina, parque ou clube."
         />
+
+        <CamposEndereco endereco={endereco} onChange={atualizarEndereco} />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input

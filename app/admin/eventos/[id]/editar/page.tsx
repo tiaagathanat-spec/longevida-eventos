@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useEventos, EventoStatus, EVENTO_STATUS_LABEL } from "@/lib/mock/eventos-store";
+import { CamposEndereco, EnderecoForm } from "@/components/eventos/campos-endereco";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +21,15 @@ export default function EditarEventoPage() {
   const [descricao, setDescricao] = useState(evento?.descricao ?? "");
   const [data, setData] = useState(evento?.data ?? "");
   const [local, setLocal] = useState(evento?.local ?? "");
+  const [endereco, setEndereco] = useState<EnderecoForm>({
+    rua: evento?.enderecoRua ?? "",
+    quadra: evento?.enderecoQuadra ?? "",
+    lote: evento?.enderecoLote ?? "",
+    cep: evento?.enderecoCep ?? "",
+    setor: evento?.enderecoSetor ?? "",
+    cidade: evento?.enderecoCidade ?? "",
+    estado: evento?.enderecoEstado ?? "",
+  });
   const [status, setStatus] = useState<EventoStatus>(evento?.status ?? "rascunho");
   const [dataLimiteInscricoes, setDataLimiteInscricoes] = useState(
     evento?.dataLimiteInscricoes ?? ""
@@ -37,6 +47,15 @@ export default function EditarEventoPage() {
       setDescricao(evento.descricao);
       setData(evento.data);
       setLocal(evento.local);
+      setEndereco({
+        rua: evento.enderecoRua ?? "",
+        quadra: evento.enderecoQuadra ?? "",
+        lote: evento.enderecoLote ?? "",
+        cep: evento.enderecoCep ?? "",
+        setor: evento.enderecoSetor ?? "",
+        cidade: evento.enderecoCidade ?? "",
+        estado: evento.enderecoEstado ?? "",
+      });
       setStatus(evento.status);
       setDataLimiteInscricoes(evento.dataLimiteInscricoes);
       setVagas(evento.vagas != null ? String(evento.vagas) : "");
@@ -72,6 +91,10 @@ export default function EditarEventoPage() {
     return Object.keys(novosErros).length === 0;
   }
 
+  function atualizarEndereco(campo: keyof EnderecoForm, valor: string) {
+    setEndereco((atual) => ({ ...atual, [campo]: valor }));
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!validar()) return;
@@ -87,6 +110,13 @@ export default function EditarEventoPage() {
         status,
         dataLimiteInscricoes,
         vagas: vagas ? Number(vagas) : null,
+        enderecoRua: endereco.rua.trim() || undefined,
+        enderecoQuadra: endereco.quadra.trim() || undefined,
+        enderecoLote: endereco.lote.trim() || undefined,
+        enderecoCep: endereco.cep.trim() || undefined,
+        enderecoSetor: endereco.setor.trim() || undefined,
+        enderecoCidade: endereco.cidade.trim() || undefined,
+        enderecoEstado: endereco.estado.trim() || undefined,
       });
       router.push(`/admin/eventos/${params.id}`);
     } catch (err) {
@@ -152,11 +182,14 @@ export default function EditarEventoPage() {
 
         <Input
           id="local"
-          label="Local"
+          label="Nome do local / referência"
           value={local}
           onChange={(e) => setLocal(e.target.value)}
           error={erros.local}
+          helper="Nome que aparece nas páginas do evento. Ex: nome da piscina, parque ou clube."
         />
+
+        <CamposEndereco endereco={endereco} onChange={atualizarEndereco} />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input

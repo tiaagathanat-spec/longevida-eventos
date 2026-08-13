@@ -33,11 +33,19 @@ export type Evento = {
   nome: string;
   descricao: string;
   data: string; // ISO date (yyyy-mm-dd)
-  local: string;
+  local: string; // nome do local / referência (ex: Espaço Longevida — Piscina Olímpica)
   status: EventoStatus;
   dataLimiteInscricoes: string; // ISO date (yyyy-mm-dd), vazio = sem limite
   vagas: number | null; // null = ilimitado
   logoUrl?: string; // logo do evento usada no dorsal (peito)
+  // Endereço detalhado do evento (opcional — usado no mapa do Google).
+  enderecoRua?: string;
+  enderecoQuadra?: string;
+  enderecoLote?: string;
+  enderecoCep?: string;
+  enderecoSetor?: string;
+  enderecoCidade?: string;
+  enderecoEstado?: string; // UF (ex: SP)
   // Organização dona do evento (uuid de `organizacoes`). Gravada APENAS
   // pelo store, a partir da organização real do usuário autenticado no
   // vínculo `organizacao_usuarios` — nunca vem do cliente. Eventos legados
@@ -113,6 +121,13 @@ const EVENTOS_INICIAIS: Evento[] = [
     status: "inscricoes_abertas",
     dataLimiteInscricoes: "2026-09-10",
     vagas: 100,
+    enderecoRua: "Av. das Nações Unidas",
+    enderecoQuadra: "12",
+    enderecoLote: "8",
+    enderecoSetor: "Central",
+    enderecoCep: "04578-000",
+    enderecoCidade: "São Paulo",
+    enderecoEstado: "SP",
   },
   {
     id: "2",
@@ -123,6 +138,11 @@ const EVENTOS_INICIAIS: Evento[] = [
     status: "em_espera",
     dataLimiteInscricoes: "2026-10-05",
     vagas: null,
+    enderecoRua: "Estrada da Represa",
+    enderecoSetor: "Parque",
+    enderecoCep: "04914-000",
+    enderecoCidade: "São Paulo",
+    enderecoEstado: "SP",
   },
   {
     id: "3",
@@ -133,8 +153,39 @@ const EVENTOS_INICIAIS: Evento[] = [
     status: "rascunho",
     dataLimiteInscricoes: "",
     vagas: 50,
+    enderecoRua: "Av. das Nações Unidas",
+    enderecoQuadra: "12",
+    enderecoLote: "8",
+    enderecoSetor: "Central",
+    enderecoCep: "04578-000",
+    enderecoCidade: "São Paulo",
+    enderecoEstado: "SP",
   },
 ];
+
+/** Endereço do evento formatado a partir dos campos estruturados (vazio se não preenchido). */
+export function enderecoFormatado(evento: Evento): string {
+  const endereco = [
+    [
+      evento.enderecoRua,
+      evento.enderecoQuadra ? `QD ${evento.enderecoQuadra}` : "",
+      evento.enderecoLote ? `LT ${evento.enderecoLote}` : "",
+    ]
+      .filter(Boolean)
+      .join(", "),
+    evento.enderecoSetor ? `Setor ${evento.enderecoSetor}` : "",
+    [evento.enderecoCidade, evento.enderecoEstado].filter(Boolean).join(" - "),
+    evento.enderecoCep,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  return endereco;
+}
+
+/** Texto usado na busca do mapa do Google (endereço ou o nome do local). */
+export function enderecoParaMapa(evento: Evento): string {
+  return enderecoFormatado(evento) || evento.local;
+}
 
 function gerarId() {
   return Math.random().toString(36).slice(2, 10);
