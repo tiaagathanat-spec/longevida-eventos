@@ -9,6 +9,7 @@ import {
   Users,
   ClipboardList,
   Trophy,
+  Route,
   User,
   LogOut,
   Menu,
@@ -26,6 +27,7 @@ const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/portal/meus-atletas", label: "Meus atletas", icon: Users },
   { href: "/portal/minhas-inscricoes", label: "Minhas inscrições", icon: ClipboardList },
   { href: "/portal/meus-resultados", label: "Meus resultados", icon: Trophy },
+  { href: "/portal/minha-jornada", label: "Minha Jornada", icon: Route },
   { href: "/portal/perfil", label: "Meu perfil", icon: User },
 ];
 
