@@ -19,6 +19,7 @@
 
 import { createContext, useContext, useMemo, useState, ReactNode } from "react";
 import { usePersistencia } from "@/lib/supabase/persistencia";
+import { buscarOrganizacaoAtual } from "@/lib/supabase/usuario-organizacao";
 
 export type EventoStatus =
   | "rascunho"
@@ -37,6 +38,11 @@ export type Evento = {
   dataLimiteInscricoes: string; // ISO date (yyyy-mm-dd), vazio = sem limite
   vagas: number | null; // null = ilimitado
   logoUrl?: string; // logo do evento usada no dorsal (peito)
+  // Organização dona do evento (uuid de `organizacoes`). Gravada APENAS
+  // pelo store, a partir da organização real do usuário autenticado no
+  // vínculo `organizacao_usuarios` — nunca vem do cliente. Eventos legados
+  // (seed / pré-backfill) podem chegar sem este campo.
+  organizacaoId?: string;
 };
 
 export const EVENTO_STATUS_LABEL: Record<EventoStatus, string> = {
@@ -85,8 +91,8 @@ type EventosContextValue = {
   carregando: boolean;
   erro: string | null;
   obterPorId: (id: string) => Evento | undefined;
-  criar: (dados: Omit<Evento, "id">) => Promise<Evento>;
-  atualizar: (id: string, dados: Omit<Evento, "id">) => Promise<void>;
+  criar: (dados: Omit<Evento, "id" | "organizacaoId">) => Promise<Evento>;
+  atualizar: (id: string, dados: Omit<Evento, "id" | "organizacaoId">) => Promise<void>;
   alterarStatus: (id: string, status: EventoStatus) => Promise<void>;
   definirLogo: (id: string, logoUrl: string) => Promise<void>;
   excluir: (id: string) => Promise<void>;
@@ -148,14 +154,30 @@ export function EventosProvider({ children }: { children: ReactNode }) {
       erro: null,
       obterPorId: (id) => eventos.find((e) => e.id === id),
       criar: async (dados) => {
-        const novo: Evento = { id: gerarId(), ...dados };
+        // Organização REAL do usuário autenticado (vínculo
+        // organizacao_usuarios). Nunca usa localStorage, seleção manual do
+        // cliente ou valor fixo; um valor enviado pelo cliente é
+        // ignorado/sobrescrito aqui.
+        const organizacaoId = await buscarOrganizacaoAtual();
+        if (!organizacaoId) {
+          throw new Error(
+            "Você não está vinculado a uma organização autorizada a criar eventos."
+          );
+        }
+        const novo: Evento = { id: gerarId(), ...dados, organizacaoId };
         setEventos((atual) =>
           [...atual, novo].sort((a, b) => a.data.localeCompare(b.data))
         );
         return novo;
       },
       atualizar: async (id, dados) => {
-        setEventos((atual) => atual.map((e) => (e.id === id ? { id, ...dados } : e)));
+        // Preserva a organização do evento: o cliente nunca pode trocar
+        // organizacao_id para outra organização.
+        setEventos((atual) =>
+          atual.map((e) =>
+            e.id === id ? { id, ...dados, organizacaoId: e.organizacaoId } : e
+          )
+        );
       },
       alterarStatus: async (id, status) => {
         setEventos((atual) =>

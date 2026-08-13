@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { CalendarDays, MapPin, Users } from "lucide-react";
 import {
@@ -8,7 +9,7 @@ import {
   EVENTO_STATUS_STYLE,
   inscricoesEstaoAbertas,
 } from "@/lib/mock/eventos-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useContagensInscritosPublicas } from "@/lib/mock/contagem-inscritos-publicos";
 import { useGaleria } from "@/lib/mock/galeria-store";
 
 function formatarData(iso: string) {
@@ -21,11 +22,15 @@ function formatarData(iso: string) {
 
 export default function EventosPublicosPage() {
   const { eventos } = useEventos();
-  const { inscricoes } = useInscricoes();
   const { obterCapa } = useGaleria();
 
   // Rascunho fica oculto; os demais status aparecem para o público.
-  const visiveis = eventos.filter((e) => e.status !== "rascunho");
+  const visiveis = useMemo(
+    () => eventos.filter((e) => e.status !== "rascunho"),
+    [eventos]
+  );
+  const eventoIds = useMemo(() => visiveis.map((e) => e.id), [visiveis]);
+  const { contagens } = useContagensInscritosPublicas(eventoIds);
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-16">
@@ -45,9 +50,7 @@ export default function EventosPublicosPage() {
           </p>
         ) : (
           visiveis.map((evento) => {
-            const inscritos = inscricoes.filter(
-              (i) => i.eventoId === evento.id && i.status === "confirmada"
-            ).length;
+            const inscritos = contagens[evento.id] ?? 0;
             const abertas = inscricoesEstaoAbertas(evento, inscritos);
             const capa = obterCapa(evento.id);
             return (

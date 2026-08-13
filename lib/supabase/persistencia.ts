@@ -63,15 +63,27 @@ export async function carregar<T>(
   }
 }
 
-// Grava as linhas na tabela, uma por uma, e retorna `true` se tudo foi
-// persistido. Quando o array está vazio, remove todas as linhas
-// (`chaveColuna` é a coluna de identidade em snake_case). O upsert
-// individual é necessário porque o PostgREST exige que todas as linhas de
-// um array tenham as mesmas chaves: linhas recém-criadas nas telas têm
-// menos campos que as carregadas do banco, e o array misto fazia o
-// PostgREST preencher as chaves ausentes com NULL, violando colunas
-// `not null default ''` (erro 400). No upsert individual, campos ausentes
-// usam o default na criação e são preservados na edição (merge).
+// Grava as linhas na tabela, uma por uma, e retorna `true` se todas
+// foram persistidas. O upsert individual é necessário porque o PostgREST
+// exige que todas as linhas de um array tenham as mesmas chaves: linhas
+// recém-criadas nas telas têm menos campos que as carregadas do banco, e
+// o array misto fazia o PostgREST preencher as chaves ausentes com NULL,
+// violando colunas `not null default ''` (erro 400). No upsert individual,
+// campos ausentes usam o default na criação e são preservados na edição
+// (merge).
+//
+// SEGURANÇA (RLS por organização/evento):
+//   * Array vazio NÃO apaga a tabela. Remoções são responsabilidade do
+//     diff de ids em `usePersistencia`; um array vazio aqui jamais
+//     autoriza operação destrutiva.
+//   * Erro de permissão (42501) = linha fora do escopo do usuário: a
+//     linha é PULADA e a gravação continua (o usuário só persiste o que
+//     realmente pode alterar), mas o retorno vira `false` — o bloqueio
+//     RLS nunca é tratado como sucesso e a base de sincronização não
+//     avança (a linha não persistida é reenviada na próxima mudança).
+//   * Demais erros (constraint etc.) abortam a gravação e retornam
+//     `false`, como antes.
+//   * Erro 42P01 (tabela ainda não criada) continua sendo ignorado.
 export async function gravarLinhas<T>(
   tabela: string,
   linhas: T[],
@@ -80,23 +92,27 @@ export async function gravarLinhas<T>(
   try {
     const supabase = createClient();
     if (linhas.length === 0) {
-      const { error } = await supabase.from(tabela).delete().neq(chaveColuna, "");
-      if (error && error.code !== "42P01") {
-        console.warn(`[persistencia] limpar tabela ${tabela}:`, error.message);
-        return false;
-      }
       return true;
     }
+    let bloqueioRls = false;
     for (const linha of linhas) {
       const { error } = await supabase
         .from(tabela)
         .upsert(limparJson(camelParaSnake(linha as Linha)));
       if (error && error.code !== "42P01") {
+        if (error.code === "42501") {
+          console.warn(
+            `[persistencia] linha fora do escopo, ignorada em ${tabela}:`,
+            error.message
+          );
+          bloqueioRls = true;
+          continue;
+        }
         console.warn(`[persistencia] gravar ${tabela}:`, error.message);
         return false;
       }
     }
-    return true;
+    return !bloqueioRls;
   } catch (err) {
     console.warn(`[persistencia] falha ao gravar ${tabela}:`, err);
     return false;

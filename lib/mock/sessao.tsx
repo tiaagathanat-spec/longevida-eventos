@@ -7,9 +7,13 @@
 // módulos mockados poderem filtrar os dados certos (Meus Atletas, Minhas
 // Inscrições, Meus Resultados).
 //
-// O nome vem do cadastro do usuário no Supabase (user_metadata) ou do
-// prefixo do e-mail. `definirSessao` é usado logo após um cadastro/edição
-// de perfil para já refletir o nome na tela.
+// O nome vem, em ordem de prioridade:
+//   1) da tabela `usuarios` (criada no signup pelo trigger da 0002 e
+//      atualizada em /portal/perfil) — fonte de verdade do RLS por nome;
+//   2) dos metadados do usuário no Supabase (user_metadata);
+//   3) do prefixo do e-mail.
+// `definirSessao` é usado logo após um cadastro/edição de perfil para já
+// refletir o nome na tela.
 
 import {
   createContext,
@@ -48,6 +52,25 @@ function nomeDoUsuario(
   return parte;
 }
 
+// Nome efetivo da sessão: prioriza a tabela `usuarios` (mesma origem que o
+// RLS usa para casar responsavel_nome), caindo para os metadados do auth e,
+// por fim, para o prefixo do e-mail.
+async function nomeDoUsuarioEfetivo(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  email: string,
+  metadados: Record<string, unknown> | null
+): Promise<string> {
+  const { data } = await supabase
+    .from("usuarios")
+    .select("nome")
+    .eq("id", userId)
+    .maybeSingle();
+  const nomeBanco = (data as { nome?: string } | null)?.nome?.trim();
+  if (nomeBanco) return nomeBanco;
+  return nomeDoUsuario(metadados, email);
+}
+
 export function SessaoProvider({ children }: { children: ReactNode }) {
   const [sessao, setSessao] = useState<Sessao>(SESSAO_VAZIA);
 
@@ -64,32 +87,35 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
         setSessao(SESSAO_VAZIA);
         return;
       }
-      setSessao({
-        nome: nomeDoUsuario(
-          (user.user_metadata as Record<string, unknown> | null) ?? null,
-          user.email
-        ),
-        email: user.email,
-      });
+      const nome = await nomeDoUsuarioEfetivo(
+        supabase,
+        user.id,
+        user.email,
+        (user.user_metadata as Record<string, unknown> | null) ?? null
+      );
+      if (!ativo) return;
+      setSessao({ nome, email: user.email });
     }
 
     sincronizarComAuth();
 
-    const { data: inscricao } = supabase.auth.onAuthStateChange((_evento, session) => {
-      if (!ativo) return;
-      const user = session?.user;
-      if (!user?.email) {
-        setSessao(SESSAO_VAZIA);
-        return;
+    const { data: inscricao } = supabase.auth.onAuthStateChange(
+      async (_evento, session) => {
+        const user = session?.user;
+        if (!user?.email) {
+          if (ativo) setSessao(SESSAO_VAZIA);
+          return;
+        }
+        const nome = await nomeDoUsuarioEfetivo(
+          supabase,
+          user.id,
+          user.email,
+          (user.user_metadata as Record<string, unknown> | null) ?? null
+        );
+        if (!ativo) return;
+        setSessao({ nome, email: user.email });
       }
-      setSessao({
-        nome: nomeDoUsuario(
-          (user.user_metadata as Record<string, unknown> | null) ?? null,
-          user.email
-        ),
-        email: user.email,
-      });
-    });
+    );
 
     return () => {
       ativo = false;

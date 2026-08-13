@@ -20,7 +20,7 @@ import {
   EVENTO_STATUS_STYLE,
   inscricoesEstaoAbertas,
 } from "@/lib/mock/eventos-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useContagemInscritosPublica } from "@/lib/mock/contagem-inscritos-publicos";
 import { useGaleria } from "@/lib/mock/galeria-store";
 import { useRegulamentos } from "@/lib/mock/regulamentos-store";
 
@@ -37,7 +37,7 @@ export default function EventoPublicoPage() {
   const eventoId = params.id;
 
   const { obterPorId: obterEvento } = useEventos();
-  const { inscricoes } = useInscricoes();
+  const { inscritos } = useContagemInscritosPublica(eventoId);
   const { obterCapa, listarPublicasPorEvento } = useGaleria();
   const { listarPorEvento } = useRegulamentos();
 
@@ -58,9 +58,6 @@ export default function EventoPublicoPage() {
   }
 
   const visivel = evento.status !== "rascunho";
-  const inscritos = inscricoes.filter(
-    (i) => i.eventoId === evento.id && i.status === "confirmada"
-  ).length;
   const abertas = inscricoesEstaoAbertas(evento, inscritos);
   const capa = obterCapa(evento.id);
   const fotos = listarPublicasPorEvento(evento.id).filter((f) => f.categoria !== "capa");
