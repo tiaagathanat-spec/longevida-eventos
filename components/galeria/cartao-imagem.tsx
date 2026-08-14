@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Pencil, Trash2, Globe, Lock } from "lucide-react";
+import { Eye, Pencil, Trash2, Globe, Lock, Play } from "lucide-react";
 import { ImagemGaleria } from "@/lib/mock/galeria-store";
 
 type CartaoImagemProps = {
@@ -24,8 +24,26 @@ export function CartaoImagem({ imagem, onVisualizar, onEditar, onExcluir }: Cart
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
       <button type="button" onClick={onVisualizar} className="block w-full">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={imagem.url} alt={imagem.nome} className="h-36 w-full object-cover" />
+        {imagem.tipo === "video" ? (
+          <span className="relative block">
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video
+              src={imagem.url}
+              muted
+              playsInline
+              preload="metadata"
+              className="h-36 w-full object-cover"
+            />
+            <span className="absolute inset-0 flex items-center justify-center">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/50 text-white">
+                <Play className="h-5 w-5" />
+              </span>
+            </span>
+          </span>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imagem.url} alt={imagem.nome} className="h-36 w-full object-cover" />
+        )}
       </button>
 
       <div className="p-3.5">

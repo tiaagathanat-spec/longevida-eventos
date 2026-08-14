@@ -69,7 +69,7 @@ export default function GaleriaPublicaPage() {
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-16 text-center dark:border-slate-700 dark:bg-slate-950">
           <ImageIcon className="mx-auto h-6 w-6 text-slate-300" />
           <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-            Nenhuma imagem disponível para este evento ainda.
+            Nenhuma foto ou vídeo disponível para este evento ainda.
           </p>
         </div>
       ) : (

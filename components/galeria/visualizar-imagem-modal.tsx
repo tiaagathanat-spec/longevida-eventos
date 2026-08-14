@@ -27,12 +27,23 @@ export function VisualizarImagemModal({ imagem, onClose }: VisualizarImagemModal
         <X className="h-5 w-5" />
       </button>
       <div className="max-h-[85vh] max-w-3xl" onClick={(e) => e.stopPropagation()}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imagem.url}
-          alt={imagem.nome}
-          className="max-h-[75vh] w-full rounded-xl object-contain"
-        />
+        {imagem.tipo === "video" ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <video
+            src={imagem.url}
+            controls
+            autoPlay
+            playsInline
+            className="max-h-[75vh] w-full rounded-xl"
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imagem.url}
+            alt={imagem.nome}
+            className="max-h-[75vh] w-full rounded-xl object-contain"
+          />
+        )}
         <p className="mt-3 text-center text-sm text-white/80">{imagem.nome}</p>
       </div>
     </div>

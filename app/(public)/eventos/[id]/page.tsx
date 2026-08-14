@@ -14,6 +14,8 @@ import {
   Lock,
   Download,
   ExternalLink,
+  Route,
+  Video,
 } from "lucide-react";
 import {
   useEventos,
@@ -64,7 +66,11 @@ export default function EventoPublicoPage() {
   const visivel = evento.status !== "rascunho";
   const abertas = inscricoesEstaoAbertas(evento, inscritos);
   const capa = obterCapa(evento.id);
-  const fotos = listarPublicasPorEvento(evento.id).filter((f) => f.categoria !== "capa");
+  const midiasPublicas = listarPublicasPorEvento(evento.id);
+  const percurso = midiasPublicas.filter((m) => m.categoria === "percurso");
+  const fotos = midiasPublicas.filter(
+    (f) => f.categoria !== "capa" && f.categoria !== "percurso" && f.tipo !== "video"
+  );
   const regulamentos = listarPorEvento(evento.id);
   const endereco = enderecoFormatado(evento);
   const enderecoParaBusca = enderecoParaMapa(evento);
@@ -251,6 +257,52 @@ export default function EventoPublicoPage() {
                 </span>
               </a>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* Percurso da prova */}
+      {percurso.length > 0 && (
+        <section className="mb-10">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <Route className="h-4 w-4 text-brand-blue" />
+            Percurso da prova
+          </h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {percurso.map((midia) =>
+              midia.tipo === "video" ? (
+                <div
+                  key={midia.id}
+                  className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800"
+                >
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                  <video
+                    src={midia.url}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="aspect-video w-full object-cover"
+                  />
+                  <p className="flex items-center gap-1.5 p-3 text-xs text-slate-500 dark:text-slate-400">
+                    <Video className="h-3.5 w-3.5" />
+                    {midia.nome}
+                  </p>
+                </div>
+              ) : (
+                <Link
+                  key={midia.id}
+                  href={`/galeria/${evento.id}`}
+                  className="group overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={midia.url}
+                    alt={midia.nome}
+                    className="h-40 w-full object-cover transition-transform group-hover:scale-105"
+                  />
+                </Link>
+              )
+            )}
           </div>
         </section>
       )}

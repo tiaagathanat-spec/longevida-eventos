@@ -95,7 +95,7 @@ export default function GaleriaDoEventoPage() {
           </Link>
           <Button onClick={() => abrirUpload()}>
             <Plus className="h-4 w-4" />
-            Enviar imagem
+            Enviar mídia
           </Button>
         </div>
       </header>
@@ -104,11 +104,11 @@ export default function GaleriaDoEventoPage() {
         <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
           <ImageIcon className="mx-auto h-6 w-6 text-slate-300" />
           <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-            Nenhuma imagem enviada para este evento ainda.
+            Nenhuma imagem ou vídeo enviado para este evento ainda.
           </p>
           <Button onClick={() => abrirUpload()} className="mt-4">
             <Plus className="h-4 w-4" />
-            Enviar primeira imagem
+            Enviar primeira mídia
           </Button>
         </div>
       ) : (
@@ -172,7 +172,7 @@ export default function GaleriaDoEventoPage() {
 
       <ConfirmDialog
         open={!!imagemParaExcluir}
-        title="Excluir imagem"
+        title="Excluir mídia"
         description={
           imagemParaExcluir
             ? `Tem certeza que deseja excluir "${imagemParaExcluir.nome}"? Essa ação não pode ser desfeita.`

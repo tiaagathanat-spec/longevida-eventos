@@ -14,12 +14,13 @@
 //   galeria/{eventoId}/premiacao/...
 //   galeria/{eventoId}/percurso/...
 // O campo `url` abaixo guardaria a URL pública (ou assinada, se
-// privada) retornada pelo Storage. Por enquanto, guardamos a imagem
-// como data URL em memória (some ao recarregar a página), só para o
-// fluxo de upload/visualização funcionar de ponta a ponta.
+// privada) retornada pelo Storage. Por enquanto, guardamos a imagem ou
+// vídeo como data URL em memória (some ao recarregar a página), só para
+// o fluxo de upload/visualização funcionar de ponta a ponta.
 
 import { createContext, useContext, useMemo, useState, ReactNode } from "react";
 import { usePersistencia } from "@/lib/supabase/persistencia";
+import { TipoMidia } from "@/lib/mock/galeria-midias";
 
 export type CategoriaImagem =
   | "capa"
@@ -38,6 +39,7 @@ export type ImagemGaleria = {
   eventoId: string;
   categoria: CategoriaImagem;
   nome: string;
+  tipo: TipoMidia; // "imagem" | "video" — registros antigos sem o campo são tratados como imagem
   url: string; // data URL (mock) — vira URL do Supabase Storage no backend real
   visibilidade: Visibilidade;
   enviadoEm: string; // ISO datetime
@@ -104,6 +106,7 @@ export function GaleriaProvider({ children }: { children: ReactNode }) {
           id: gerarId(),
           enviadoEm: new Date().toISOString(),
           ...dados,
+          tipo: dados.tipo ?? "imagem",
         };
         setImagens((atual) => [nova, ...atual]);
         return nova;

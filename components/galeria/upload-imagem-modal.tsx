@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, FormEvent, useRef, useEffect } from "react";
-import { UploadCloud, ImageOff } from "lucide-react";
+import { UploadCloud, ImageOff, Video } from "lucide-react";
 import {
   CategoriaImagem,
   CATEGORIA_LABEL,
   CATEGORIAS_ORDENADAS,
   Visibilidade,
 } from "@/lib/mock/galeria-store";
+import { tipoDaMidia, ehMidiaSuportada, TipoMidia } from "@/lib/mock/galeria-midias";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -21,6 +22,7 @@ type UploadImagemModalProps = {
     nome: string;
     categoria: CategoriaImagem;
     visibilidade: Visibilidade;
+    tipo: TipoMidia;
     url: string;
   }) => void;
 };
@@ -33,6 +35,7 @@ export function UploadImagemModal({
 }: UploadImagemModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [arquivoUrl, setArquivoUrl] = useState<string | null>(null);
+  const [tipo, setTipo] = useState<TipoMidia>("imagem");
   const [nome, setNome] = useState("");
   const [categoria, setCategoria] = useState<CategoriaImagem>(categoriaInicial ?? "evento");
   const [visibilidade, setVisibilidade] = useState<Visibilidade>("privada");
@@ -49,6 +52,7 @@ export function UploadImagemModal({
 
   function resetar() {
     setArquivoUrl(null);
+    setTipo("imagem");
     setNome("");
     setCategoria(categoriaInicial ?? "evento");
     setVisibilidade("privada");
@@ -65,12 +69,13 @@ export function UploadImagemModal({
     const arquivo = e.target.files?.[0];
     if (!arquivo) return;
 
-    if (!arquivo.type.startsWith("image/")) {
-      setErro("Selecione um arquivo de imagem.");
+    if (!ehMidiaSuportada(arquivo.type)) {
+      setErro("Selecione um arquivo de imagem ou vídeo (MP4, WebM ou OGG).");
       return;
     }
 
     setErro(null);
+    setTipo(tipoDaMidia(arquivo.type));
     if (!nome) setNome(arquivo.name.replace(/\.[^/.]+$/, ""));
 
     const leitor = new FileReader();
@@ -81,20 +86,20 @@ export function UploadImagemModal({
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!arquivoUrl) {
-      setErro("Selecione uma imagem para enviar.");
+      setErro("Selecione um arquivo de imagem ou vídeo para enviar.");
       return;
     }
     if (!nome.trim()) {
-      setErro("Informe um nome para a imagem.");
+      setErro("Informe um nome para a mídia.");
       return;
     }
 
-    onEnviar({ nome: nome.trim(), categoria, visibilidade, url: arquivoUrl });
+    onEnviar({ nome: nome.trim(), categoria, visibilidade, tipo, url: arquivoUrl });
     resetar();
   }
 
   return (
-    <Modal open={open} title="Enviar imagem" onClose={handleClose}>
+    <Modal open={open} title="Enviar mídia" onClose={handleClose}>
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
@@ -106,17 +111,27 @@ export function UploadImagemModal({
             className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center transition-colors hover:border-brand-blue/50 dark:border-slate-700 dark:bg-slate-900"
           >
             {arquivoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={arquivoUrl}
-                alt="Pré-visualização"
-                className="h-28 w-full rounded-lg object-cover"
-              />
+              tipo === "video" ? (
+                <video
+                  src={arquivoUrl}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="h-28 w-full rounded-lg object-cover"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={arquivoUrl}
+                  alt="Pré-visualização"
+                  className="h-28 w-full rounded-lg object-cover"
+                />
+              )
             ) : (
               <>
                 <UploadCloud className="h-6 w-6 text-slate-400" />
                 <span className="text-xs text-slate-500 dark:text-slate-400">
-                  Clique para escolher uma imagem
+                  Clique para escolher um arquivo de imagem ou vídeo
                 </span>
               </>
             )}
@@ -124,7 +139,7 @@ export function UploadImagemModal({
           <input
             ref={inputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/mp4,video/webm,video/ogg,video/quicktime"
             onChange={handleArquivoSelecionado}
             className="hidden"
           />
@@ -132,8 +147,8 @@ export function UploadImagemModal({
 
         <Input
           id="nome"
-          label="Nome da imagem"
-          placeholder="Ex: Banner principal"
+          label="Nome da mídia"
+          placeholder="Ex: Vídeo demonstrativo do percurso"
           value={nome}
           onChange={(e) => setNome(e.target.value)}
         />

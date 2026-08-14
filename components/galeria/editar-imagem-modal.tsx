@@ -41,12 +41,23 @@ export function EditarImagemModal({ imagem, onClose, onSalvar }: EditarImagemMod
     <Modal open={!!imagem} title="Editar imagem" onClose={onClose}>
       {imagem && (
         <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imagem.url} alt={imagem.nome} className="h-32 w-full rounded-lg object-cover" />
+          {imagem.tipo === "video" ? (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <video
+              src={imagem.url}
+              muted
+              controls
+              playsInline
+              className="h-32 w-full rounded-lg object-cover"
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imagem.url} alt={imagem.nome} className="h-32 w-full rounded-lg object-cover" />
+          )}
 
           <Input
             id="nome"
-            label="Nome da imagem"
+            label="Nome da mídia"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
           />
