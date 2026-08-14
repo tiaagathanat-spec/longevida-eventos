@@ -153,8 +153,8 @@ export default function GaleriaDoEventoPage() {
         open={modalUploadAberto}
         categoriaInicial={categoriaParaUpload}
         onClose={() => setModalUploadAberto(false)}
-        onEnviar={(dados) => {
-          adicionar({ eventoId, ...dados });
+        onEnviar={async (dados) => {
+          await adicionar(eventoId, dados);
           setModalUploadAberto(false);
         }}
       />
@@ -180,8 +180,8 @@ export default function GaleriaDoEventoPage() {
         }
         confirmLabel="Excluir"
         onCancel={() => setExcluindoId(null)}
-        onConfirm={() => {
-          if (excluindoId) excluir(excluindoId);
+        onConfirm={async () => {
+          if (excluindoId) await excluir(excluindoId);
           setExcluindoId(null);
         }}
       />

@@ -40,3 +40,9 @@ next-env.d.ts
 # ide
 .vscode/
 .idea/
+
+.vercel
+.env*
+
+# supabase cli
+supabase/.temp/

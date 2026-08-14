@@ -1,26 +1,18 @@
 "use client";
 
-// Store temporário do módulo Galeria, em memória (Context + useState).
-// Mesmo padrão dos demais módulos: substituir por Server Actions +
-// Supabase Storage quando o backend real entrar.
+// Store do módulo Galeria (Context + useState), com a mídia persistida no
+// Supabase Storage e as linhas em app_galeria via usePersistencia.
 //
-// ARMAZENAMENTO REAL (planejado): bucket `galeria` no Supabase Storage,
-// organizado por evento e categoria:
-//   galeria/{eventoId}/logos/...
-//   galeria/{eventoId}/banners/...
-//   galeria/{eventoId}/kits/...
-//   galeria/{eventoId}/medalhas/...
-//   galeria/{eventoId}/evento/...
-//   galeria/{eventoId}/premiacao/...
-//   galeria/{eventoId}/percurso/...
-// O campo `url` abaixo guardaria a URL pública (ou assinada, se
-// privada) retornada pelo Storage. Por enquanto, guardamos a imagem ou
-// vídeo como data URL em memória (some ao recarregar a página), só para
-// o fluxo de upload/visualização funcionar de ponta a ponta.
+// Os arquivos são enviados ao bucket `galeria` (policies da migration 0011)
+// e o campo `url` da linha guarda a URL pública do arquivo. Registros
+// antigos que guardavam data URL (base64) na coluna `url` continuam
+// funcionando — o navegador renderiza data URLs; apenas novos uploads
+// passam pelo Storage.
 
 import { createContext, useContext, useMemo, useState, ReactNode } from "react";
 import { usePersistencia } from "@/lib/supabase/persistencia";
 import { TipoMidia } from "@/lib/mock/galeria-midias";
+import { enviarArquivoGaleria, removerArquivoGaleria } from "@/lib/supabase/galeria-storage";
 
 export type CategoriaImagem =
   | "capa"
@@ -40,9 +32,21 @@ export type ImagemGaleria = {
   categoria: CategoriaImagem;
   nome: string;
   tipo: TipoMidia; // "imagem" | "video" — registros antigos sem o campo são tratados como imagem
-  url: string; // data URL (mock) — vira URL do Supabase Storage no backend real
+  url: string; // URL pública no Supabase Storage (ou data URL de registros antigos)
   visibilidade: Visibilidade;
   enviadoEm: string; // ISO datetime
+};
+
+export type NovosDadosGaleria = {
+  nome: string;
+  categoria: CategoriaImagem;
+  tipo: TipoMidia; // "imagem" | "video"
+  url: string; // URL pública retornada pelo Storage após o upload
+  visibilidade: Visibilidade;
+};
+
+export type NovosArquivoGaleria = Omit<NovosDadosGaleria, "url"> & {
+  arquivo: File;
 };
 
 export const CATEGORIA_LABEL: Record<CategoriaImagem, string> = {
@@ -72,12 +76,12 @@ type GaleriaContextValue = {
   listarPorEvento: (eventoId: string) => ImagemGaleria[];
   listarPublicasPorEvento: (eventoId: string) => ImagemGaleria[];
   obterCapa: (eventoId: string) => ImagemGaleria | undefined;
-  adicionar: (dados: Omit<ImagemGaleria, "id" | "enviadoEm">) => ImagemGaleria;
+  adicionar: (eventoId: string, dados: NovosArquivoGaleria) => Promise<ImagemGaleria>;
   atualizar: (
     id: string,
     dados: Partial<Pick<ImagemGaleria, "nome" | "categoria" | "visibilidade">>
   ) => void;
-  excluir: (id: string) => void;
+  excluir: (id: string) => Promise<void>;
 };
 
 const GaleriaContext = createContext<GaleriaContextValue | null>(null);
@@ -101,12 +105,22 @@ export function GaleriaProvider({ children }: { children: ReactNode }) {
         imagens.filter((i) => i.eventoId === eventoId && i.visibilidade === "publica"),
       obterCapa: (eventoId) =>
         imagens.find((i) => i.eventoId === eventoId && i.categoria === "capa" && i.visibilidade === "publica"),
-      adicionar: (dados) => {
+      adicionar: async (eventoId, dados) => {
+        const { url } = await enviarArquivoGaleria({
+          arquivo: dados.arquivo,
+          eventoId,
+          categoria: dados.categoria,
+          visibilidade: dados.visibilidade,
+        });
         const nova: ImagemGaleria = {
           id: gerarId(),
           enviadoEm: new Date().toISOString(),
-          ...dados,
-          tipo: dados.tipo ?? "imagem",
+          eventoId,
+          nome: dados.nome,
+          categoria: dados.categoria,
+          visibilidade: dados.visibilidade,
+          tipo: dados.tipo,
+          url,
         };
         setImagens((atual) => [nova, ...atual]);
         return nova;
@@ -114,7 +128,11 @@ export function GaleriaProvider({ children }: { children: ReactNode }) {
       atualizar: (id, dados) => {
         setImagens((atual) => atual.map((i) => (i.id === id ? { ...i, ...dados } : i)));
       },
-      excluir: (id) => {
+      excluir: async (id) => {
+        const alvo = imagens.find((i) => i.id === id);
+        if (alvo) {
+          await removerArquivoGaleria(alvo.url);
+        }
         setImagens((atual) => atual.filter((i) => i.id !== id));
       },
     }),
