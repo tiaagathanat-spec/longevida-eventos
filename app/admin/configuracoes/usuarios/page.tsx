@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { UserPlus, Pencil, Trash2, KeyRound } from "lucide-react";
+import { UserPlus, Pencil, Trash2, KeyRound, Copy, Check, Wand2 } from "lucide-react";
 import {
   useFuncionarios,
   Funcionario,
@@ -30,6 +30,7 @@ type FormDados = {
   nome: string;
   email: string;
   telefone: string;
+  senha: string;
   papel: PapelOrganizacao;
   organizacaoId: string;
   ativo: boolean;
@@ -40,11 +41,42 @@ const FORM_VAZIO: FormDados = {
   nome: "",
   email: "",
   telefone: "",
+  senha: "",
   papel: "organizador",
   organizacaoId: "1",
   ativo: true,
   permissoes: PERMISSOES_POR_PAPEL.organizador,
 };
+
+function gerarSenha() {
+  const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const rnd = new Uint8Array(12);
+  crypto.getRandomValues(rnd);
+  return Array.from(rnd, (b) => charset[b % charset.length]).join("");
+}
+
+function BotaoCopiar({ texto, label }: { texto: string; label: string }) {
+  const [copiado, setCopiado] = useState(false);
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      // Clipboard indisponível — ignora.
+    }
+  }
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={copiar}
+      className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"
+    >
+      {copiado ? <Check className="h-4 w-4 text-brand-green" /> : <Copy className="h-4 w-4" />}
+    </button>
+  );
+}
 
 export default function UsuariosPage() {
   const { funcionarios, criar, atualizar, excluir } = useFuncionarios();
@@ -54,6 +86,12 @@ export default function UsuariosPage() {
   const [form, setForm] = useState<FormDados>(FORM_VAZIO);
   const [erro, setErro] = useState<string | null>(null);
   const [excluindo, setExcluindo] = useState<Funcionario | null>(null);
+  const [submetendo, setSubmetendo] = useState(false);
+  const [credenciais, setCredenciais] = useState<{
+    nome: string;
+    email: string;
+    senha: string;
+  } | null>(null);
 
   function abrirNovo() {
     setEditandoId(null);
@@ -68,6 +106,7 @@ export default function UsuariosPage() {
       nome: f.nome,
       email: f.email,
       telefone: f.telefone,
+      senha: "",
       papel: f.papel,
       organizacaoId: f.organizacaoId,
       ativo: f.ativo,
@@ -77,18 +116,54 @@ export default function UsuariosPage() {
     setModalAberto(true);
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!form.nome.trim() || !form.email.trim()) {
       setErro("Informe pelo menos nome e e-mail do funcionário.");
       return;
     }
     if (editandoId) {
-      atualizar(editandoId, form);
-    } else {
-      criar(form);
+      const { senha: _ignorada, ...dadosFuncionario } = form;
+      atualizar(editandoId, dadosFuncionario);
+      setModalAberto(false);
+      return;
     }
-    setModalAberto(false);
+
+    setSubmetendo(true);
+    setErro(null);
+    try {
+      const resposta = await fetch("/api/admin/funcionarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: form.nome.trim(),
+          email: form.email.trim(),
+          telefone: form.telefone.trim(),
+          papel: form.papel,
+          ativo: form.ativo,
+          senha: form.senha,
+        }),
+      });
+      const dados = await resposta.json();
+      if (!resposta.ok) {
+        throw new Error(dados.erro ?? "Não foi possível criar a conta do funcionário.");
+      }
+
+      const { senha: _ignorada, ...dadosFuncionario } = form;
+      criar(dadosFuncionario);
+      setModalAberto(false);
+      setCredenciais({
+        nome: form.nome.trim(),
+        email: form.email.trim(),
+        senha: dados.senhaTemporaria,
+      });
+    } catch (erroCatch) {
+      setErro(
+        erroCatch instanceof Error ? erroCatch.message : "Não foi possível criar a conta."
+      );
+    } finally {
+      setSubmetendo(false);
+    }
   }
 
   function nomeOrganizacao(id: string) {
@@ -237,6 +312,37 @@ export default function UsuariosPage() {
               onChange={(e) => setForm({ ...form, telefone: e.target.value })}
             />
           </div>
+          {!editandoId && (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="senhaTemporaria"
+                  className="text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  Senha temporária de acesso
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, senha: gerarSenha() })}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-brand-blue hover:underline"
+                >
+                  <Wand2 className="h-3.5 w-3.5" />
+                  Gerar senha
+                </button>
+              </div>
+              <Input
+                id="senhaTemporaria"
+                type="text"
+                value={form.senha}
+                onChange={(e) => setForm({ ...form, senha: e.target.value })}
+                placeholder="Deixe em branco para gerar automaticamente"
+              />
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                O funcionário entrará no site com este e-mail e esta senha. A senha será mostrada
+                apenas uma vez, logo após o cadastro.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Select
               id="papel"
@@ -318,9 +424,61 @@ export default function UsuariosPage() {
             <Button type="button" variant="ghost" onClick={() => setModalAberto(false)}>
               Cancelar
             </Button>
-            <Button type="submit">{editandoId ? "Salvar" : "Cadastrar"}</Button>
+            <Button type="submit" isLoading={submetendo}>
+              {editandoId ? "Salvar" : "Cadastrar"}
+            </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!credenciais}
+        title="Funcionário criado — credenciais de acesso"
+        onClose={() => setCredenciais(null)}
+      >
+        {credenciais && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              O funcionário entrará no site pelo botão "Entrar" com o e-mail e a senha abaixo:
+            </p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+              <dl className="flex flex-col gap-3 text-sm">
+                <div>
+                  <dt className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                    Nome
+                  </dt>
+                  <dd className="mt-0.5 font-medium text-slate-900 dark:text-white">
+                    {credenciais.nome}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                    E-mail
+                  </dt>
+                  <dd className="mt-0.5 flex items-center justify-between gap-2 font-medium text-slate-900 dark:text-white">
+                    {credenciais.email}
+                    <BotaoCopiar texto={credenciais.email} label="Copiar e-mail" />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                    Senha temporária
+                  </dt>
+                  <dd className="mt-0.5 flex items-center justify-between gap-2 font-medium text-slate-900 dark:text-white">
+                    <span className="font-mono">{credenciais.senha}</span>
+                    <BotaoCopiar texto={credenciais.senha} label="Copiar senha" />
+                  </dd>
+                </div>
+              </dl>
+            </div>
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Por segurança, a senha não será exibida novamente.
+            </p>
+            <Button type="button" className="w-full" onClick={() => setCredenciais(null)}>
+              Entendi
+            </Button>
+          </div>
+        )}
       </Modal>
 
       <ConfirmDialog
