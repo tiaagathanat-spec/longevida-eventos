@@ -9,3 +9,6 @@ export const CHAVE_PIX_LONGEVIDA = "39.554.830/0001-04";
 
 /** Formato exibido da chave Pix (CNPJ). */
 export const CHAVE_PIX_LONGEVIDA_LABEL = "CNPJ";
+
+/** QR Code PIX da organização, exibido para o atleta escanear no pagamento. */
+export const QR_PIX_LONGEVIDA = "/qr-longevida.png";

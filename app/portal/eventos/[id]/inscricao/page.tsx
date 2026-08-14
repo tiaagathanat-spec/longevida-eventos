@@ -12,7 +12,7 @@ import { useAtletas } from "@/lib/mock/atletas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useSessao } from "@/lib/mock/sessao";
 import { eMenorDeIdade, calcularIdadeNaData } from "@/lib/idade";
-import { CHAVE_PIX_LONGEVIDA } from "@/lib/config";
+import { CHAVE_PIX_LONGEVIDA, QR_PIX_LONGEVIDA } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -319,6 +319,17 @@ export default function InscricaoPage() {
                       {copiadoPix ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                       {copiadoPix ? "Copiado" : "Copiar"}
                     </button>
+                  </div>
+                  <div className="mt-2 flex items-center gap-3 rounded-lg border border-dashed border-brand-blue/30 bg-white/60 p-2.5 dark:bg-slate-900/60">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={QR_PIX_LONGEVIDA}
+                      alt="QR Code PIX para pagamento"
+                      className="h-14 w-14 shrink-0 rounded bg-white object-contain"
+                    />
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Escaneie o QR Code com o app do seu banco para pagar via PIX.
+                    </p>
                   </div>
                 </div>
               )}

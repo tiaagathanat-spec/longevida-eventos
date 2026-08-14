@@ -12,7 +12,7 @@ import { useAtletas } from "@/lib/mock/atletas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { usePagamentos } from "@/lib/mock/pagamentos-store";
 import { useSessao } from "@/lib/mock/sessao";
-import { CHAVE_PIX_LONGEVIDA } from "@/lib/config";
+import { CHAVE_PIX_LONGEVIDA, QR_PIX_LONGEVIDA } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 
 type FormaEscolhida = "pix" | "local";
@@ -333,6 +333,24 @@ export default function PagamentoPage() {
 
               {forma === "pix" && (
                 <div className="mt-4">
+                  <div className="mb-4 flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={QR_PIX_LONGEVIDA}
+                      alt="QR Code PIX para pagamento"
+                      className="h-28 w-28 shrink-0 rounded-lg bg-white object-contain p-1"
+                    />
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">
+                        Pague por PIX
+                      </p>
+                      <p className="mt-1">
+                        Escaneie o QR Code com o app do seu banco (chave CNPJ{" "}
+                        <span className="font-mono">{CHAVE_PIX_LONGEVIDA}</span>) e anexe o
+                        comprovante abaixo.
+                      </p>
+                    </div>
+                  </div>
                   <input
                     ref={inputArquivoRef}
                     type="file"
