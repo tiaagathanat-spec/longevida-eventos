@@ -10,6 +10,7 @@ import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
+import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 
 export default function OrganizacaoKitsPage() {
   const params = useParams<{ id: string }>();
@@ -21,6 +22,7 @@ export default function OrganizacaoKitsPage() {
   const { provas } = useProvas();
   const { inscricoes } = useInscricoes();
   const { obterPorInscricao, atualizarControles } = useDorsais();
+  const { nome: nomeOperador } = useUsuarioOrganizacao();
 
   const evento = obterEvento(eventoId);
 
@@ -150,7 +152,7 @@ export default function OrganizacaoKitsPage() {
                       type="checkbox"
                       checked={dorsal?.kitEntregue ?? false}
                       onChange={(e) =>
-                        atualizarControles(inscricao.id, { kitEntregue: e.target.checked })
+                        atualizarControles(inscricao.id, { kitEntregue: e.target.checked }, nomeOperador)
                       }
                       className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
                     />

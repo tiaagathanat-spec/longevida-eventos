@@ -355,7 +355,7 @@ export default function DorsaisDoEventoPage() {
                         disabled={!dorsal}
                         checked={dorsal?.checkInFeito ?? false}
                         onChange={(e) =>
-                          atualizarControles(inscricao.id, { checkInFeito: e.target.checked })
+                          atualizarControles(inscricao.id, { checkInFeito: e.target.checked }, "Admin")
                         }
                         className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue/30"
                       />
@@ -366,7 +366,7 @@ export default function DorsaisDoEventoPage() {
                         disabled={!dorsal}
                         checked={dorsal?.kitEntregue ?? false}
                         onChange={(e) =>
-                          atualizarControles(inscricao.id, { kitEntregue: e.target.checked })
+                          atualizarControles(inscricao.id, { kitEntregue: e.target.checked }, "Admin")
                         }
                         className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue/30"
                       />
@@ -377,7 +377,7 @@ export default function DorsaisDoEventoPage() {
                         disabled={!dorsal}
                         checked={dorsal?.medalhaEntregue ?? false}
                         onChange={(e) =>
-                          atualizarControles(inscricao.id, { medalhaEntregue: e.target.checked })
+                          atualizarControles(inscricao.id, { medalhaEntregue: e.target.checked }, "Admin")
                         }
                         className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue/30"
                       />
@@ -390,7 +390,7 @@ export default function DorsaisDoEventoPage() {
                         onChange={(e) =>
                           atualizarControles(inscricao.id, {
                             alimentacaoEntregue: e.target.checked,
-                          })
+                          }, "Admin")
                         }
                         className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue/30"
                       />

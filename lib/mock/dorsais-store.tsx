@@ -15,6 +15,21 @@
 import { createContext, useContext, useMemo, useState, ReactNode } from "react";
 import { usePersistencia } from "@/lib/supabase/persistencia";
 
+// Controles operacionais do dia do evento, auditados: cada alteração
+// registra quem fez e quando, para rastreabilidade (segurança).
+export type ChaveControleDorsal =
+  | "checkInFeito"
+  | "kitEntregue"
+  | "medalhaEntregue"
+  | "alimentacaoEntregue";
+
+export type RegistroAuditoriaDorsal = {
+  chave: ChaveControleDorsal;
+  valor: boolean;
+  usuario: string;
+  em: string; // ISO datetime
+};
+
 export type Dorsal = {
   id: string;
   inscricaoId: string;
@@ -24,7 +39,20 @@ export type Dorsal = {
   alimentacaoEntregue: boolean;
   kitEntregue: boolean;
   atribuidoEm: string; // ISO datetime
+  auditoria: RegistroAuditoriaDorsal[];
 };
+
+// Retorna o último registro de auditoria de um controle (ou undefined).
+export function obterUltimaAuditoria(
+  dorsal: Dorsal | null | undefined,
+  chave: ChaveControleDorsal
+): RegistroAuditoriaDorsal | undefined {
+  const lista = dorsal?.auditoria ?? [];
+  for (let i = lista.length - 1; i >= 0; i--) {
+    if (lista[i].chave === chave) return lista[i];
+  }
+  return undefined;
+}
 
 type DorsaisContextValue = {
   dorsais: Dorsal[];
@@ -32,7 +60,8 @@ type DorsaisContextValue = {
   registrar: (inscricaoId: string, numero: number) => Dorsal;
   atualizarControles: (
     inscricaoId: string,
-    dados: Partial<Pick<Dorsal, "checkInFeito" | "medalhaEntregue" | "alimentacaoEntregue" | "kitEntregue">>
+    dados: Partial<Pick<Dorsal, ChaveControleDorsal>>,
+    usuario?: string
   ) => void;
 };
 
@@ -64,13 +93,30 @@ export function DorsaisProvider({ children }: { children: ReactNode }) {
           alimentacaoEntregue: false,
           kitEntregue: false,
           atribuidoEm: new Date().toISOString(),
+          auditoria: [],
         };
         setDorsais((atual) => [...atual, novo]);
         return novo;
       },
-      atualizarControles: (inscricaoId, dados) => {
+      atualizarControles: (inscricaoId, dados, usuario = "Operador") => {
+        const em = new Date().toISOString();
         setDorsais((atual) =>
-          atual.map((d) => (d.inscricaoId === inscricaoId ? { ...d, ...dados } : d))
+          atual.map((d) => {
+            if (d.inscricaoId !== inscricaoId) return d;
+            const entradas = (Object.keys(dados) as ChaveControleDorsal[])
+              .filter((chave) => typeof dados[chave] === "boolean")
+              .map((chave) => ({
+                chave,
+                valor: dados[chave] as boolean,
+                usuario,
+                em,
+              }));
+            return {
+              ...d,
+              ...dados,
+              auditoria: [...(d.auditoria ?? []), ...entradas],
+            };
+          })
         );
       },
     }),

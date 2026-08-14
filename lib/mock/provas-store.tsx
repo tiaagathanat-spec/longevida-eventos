@@ -14,6 +14,11 @@ import { usePersistencia } from "@/lib/supabase/persistencia";
 
 export type TipoIdentificacaoProva = "dorsal" | "card";
 
+// Situação de realização da prova no dia do evento. "encerrada" é a
+// prova realizada (resultados liberados). A transição é auditada com
+// quem alterou e quando.
+export type SituacaoProva = "nao_iniciada" | "em_andamento" | "encerrada";
+
 export type Prova = {
   id: string;
   eventoId: string;
@@ -26,11 +31,31 @@ export type Prova = {
   // Identificação do atleta nesta prova: "dorsal" (número de peito) ou
   // "card" (credencial oficial 8,5x5,5cm). Ausente = dorsal (padrão).
   tipoIdentificacao?: TipoIdentificacaoProva;
+  // Situação de realização da prova. Ausente = "nao_iniciada".
+  situacao?: SituacaoProva;
+  situacaoAlteradaPor?: string;
+  situacaoAlteradaEm?: string; // ISO datetime
 };
 
 export function identificacaoDaProva(prova?: Prova): TipoIdentificacaoProva {
   return prova?.tipoIdentificacao ?? "dorsal";
 }
+
+export function situacaoDaProva(prova?: Prova): SituacaoProva {
+  return prova?.situacao ?? "nao_iniciada";
+}
+
+export const SITUACAO_PROVA_LABEL: Record<SituacaoProva, string> = {
+  nao_iniciada: "Não iniciada",
+  em_andamento: "Em andamento",
+  encerrada: "Realizada",
+};
+
+export const SITUACAO_PROVA_CLASSE: Record<SituacaoProva, string> = {
+  nao_iniciada: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  em_andamento: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  encerrada: "bg-brand-green/10 text-brand-green",
+};
 
 type ProvasContextValue = {
   provas: Prova[];
@@ -40,6 +65,7 @@ type ProvasContextValue = {
   atualizar: (id: string, dados: Omit<Prova, "id">) => void;
   excluir: (id: string) => void;
   duplicar: (id: string) => Prova | undefined;
+  definirSituacao: (id: string, situacao: SituacaoProva, usuario?: string) => void;
 };
 
 const ProvasContext = createContext<ProvasContextValue | null>(null);
@@ -99,7 +125,13 @@ export function ProvasProvider({ children }: { children: ReactNode }) {
       duplicar: (id) => {
         const original = provas.find((p) => p.id === id);
         if (!original) return undefined;
-        const copia: Prova = { ...original, id: gerarId() };
+        const copia: Prova = {
+          ...original,
+          id: gerarId(),
+          situacao: undefined,
+          situacaoAlteradaPor: undefined,
+          situacaoAlteradaEm: undefined,
+        };
         setProvas((atual) => {
           const indice = atual.findIndex((p) => p.id === id);
           const novaLista = [...atual];
@@ -107,6 +139,21 @@ export function ProvasProvider({ children }: { children: ReactNode }) {
           return novaLista;
         });
         return copia;
+      },
+      definirSituacao: (id, situacao, usuario = "Operador") => {
+        const em = new Date().toISOString();
+        setProvas((atual) =>
+          atual.map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  situacao,
+                  situacaoAlteradaPor: usuario,
+                  situacaoAlteradaEm: em,
+                }
+              : p
+          )
+        );
       },
     }),
     [provas]

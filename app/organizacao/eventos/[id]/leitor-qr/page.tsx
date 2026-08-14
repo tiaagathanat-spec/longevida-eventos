@@ -19,7 +19,7 @@ import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
-import { useDorsais } from "@/lib/mock/dorsais-store";
+import { useDorsais, obterUltimaAuditoria } from "@/lib/mock/dorsais-store";
 import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 import { useQrCodes } from "@/lib/mock/qrcodes-store";
 import { LeitorQr } from "@/components/qrcode/leitor-qr";
@@ -118,10 +118,14 @@ export default function OrganizacaoLeitorQrPage() {
 
   function alternarControle(chave: "checkInFeito" | "kitEntregue" | "medalhaEntregue" | "alimentacaoEntregue") {
     if (!inscricao) return;
-    atualizarControles(inscricao.id, { [chave]: !obterDorsal(inscricao.id)?.[chave] });
+    atualizarControles(inscricao.id, { [chave]: !obterDorsal(inscricao.id)?.[chave] }, nome);
   }
 
   const dorsal = inscricao ? obterDorsal(inscricao.id) : null;
+
+  function horaDe(iso: string) {
+    return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
   const resumo: ResumoInscricao | null = useMemo(() => {
     if (!inscricao) return null;
     const prova = provas.find((p) => p.id === inscricao.provaId);
@@ -218,24 +222,40 @@ export default function OrganizacaoLeitorQrPage() {
               label="Check-in"
               ativo={dorsal?.checkInFeito ?? false}
               onClick={() => alternarControle("checkInFeito")}
+              detalhe={(() => {
+                const aud = obterUltimaAuditoria(dorsal, "checkInFeito");
+                return aud ? `${aud.usuario} · ${horaDe(aud.em)}` : "";
+              })()}
             />
             <ControleCard
               icone={<Package className="h-4 w-4" />}
               label="Kit"
               ativo={dorsal?.kitEntregue ?? false}
               onClick={() => alternarControle("kitEntregue")}
+              detalhe={(() => {
+                const aud = obterUltimaAuditoria(dorsal, "kitEntregue");
+                return aud ? `${aud.usuario} · ${horaDe(aud.em)}` : "";
+              })()}
             />
             <ControleCard
               icone={<Award className="h-4 w-4" />}
               label="Medalha"
               ativo={dorsal?.medalhaEntregue ?? false}
               onClick={() => alternarControle("medalhaEntregue")}
+              detalhe={(() => {
+                const aud = obterUltimaAuditoria(dorsal, "medalhaEntregue");
+                return aud ? `${aud.usuario} · ${horaDe(aud.em)}` : "";
+              })()}
             />
             <ControleCard
               icone={<Utensils className="h-4 w-4" />}
               label="Alimentação"
               ativo={dorsal?.alimentacaoEntregue ?? false}
               onClick={() => alternarControle("alimentacaoEntregue")}
+              detalhe={(() => {
+                const aud = obterUltimaAuditoria(dorsal, "alimentacaoEntregue");
+                return aud ? `${aud.usuario} · ${horaDe(aud.em)}` : "";
+              })()}
             />
           </div>
 
@@ -265,11 +285,13 @@ function ControleCard({
   label,
   ativo,
   onClick,
+  detalhe,
 }: {
   icone: React.ReactNode;
   label: string;
   ativo: boolean;
   onClick: () => void;
+  detalhe?: string;
 }) {
   return (
     <button
@@ -282,7 +304,14 @@ function ControleCard({
       }`}
     >
       {icone}
-      {label}
+      <span className="flex flex-col items-start">
+        {label}
+        {detalhe ? (
+          <span className={`text-[10px] font-normal ${ativo ? "text-brand-green/70" : "text-slate-400"}`}>
+            {detalhe}
+          </span>
+        ) : null}
+      </span>
       <span className={`ml-auto text-xs font-semibold ${ativo ? "text-brand-green" : "text-slate-400"}`}>
         {ativo ? "Sim" : "Não"}
       </span>

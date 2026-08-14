@@ -7,17 +7,18 @@ import { ArrowLeft, Users, Search } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
-import { useProvas } from "@/lib/mock/provas-store";
+import { useProvas, situacaoDaProva, SITUACAO_PROVA_LABEL, SITUACAO_PROVA_CLASSE } from "@/lib/mock/provas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useResultados } from "@/lib/mock/resultados-store";
-import { useDorsais } from "@/lib/mock/dorsais-store";
+import { useDorsais, obterUltimaAuditoria } from "@/lib/mock/dorsais-store";
 import {
   useFaixasNumeracao,
   COR_FAIXA_HEX,
   resolverGrupoNumeracao,
 } from "@/lib/mock/faixas-numeracao-store";import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 
 export default function OrganizacaoInscritosPage() {
   const params = useParams<{ id: string }>();
@@ -32,6 +33,7 @@ export default function OrganizacaoInscritosPage() {
   const { obterPorInscricao: obterResultado } = useResultados();
   const { obterPorInscricao: obterDorsal, atualizarControles } = useDorsais();
   const { obterCriterio, obter: obterFaixa } = useFaixasNumeracao();
+  const { nome: nomeOperador } = useUsuarioOrganizacao();
 
   const evento = obterEvento(eventoId);
   const provasDoEvento = useMemo(
@@ -77,6 +79,10 @@ export default function OrganizacaoInscritosPage() {
   }
   function nomeCategoria(id: string) {
     return categorias.find((c) => c.id === id)?.nome ?? "—";
+  }
+
+  function horaDe(iso: string) {
+    return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   }
 
   if (!evento) {
@@ -137,6 +143,28 @@ export default function OrganizacaoInscritosPage() {
             ))}
           </Select>
         </div>
+        {provaId !== "todas" &&
+          (() => {
+            const provaSelecionada = provasDoEvento.find((p) => p.id === provaId);
+            const situacao = situacaoDaProva(provaSelecionada);
+            return (
+              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 dark:border-slate-800 dark:bg-slate-950">
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${SITUACAO_PROVA_CLASSE[situacao]}`}
+                >
+                  {SITUACAO_PROVA_LABEL[situacao]}
+                </span>
+                {provaSelecionada?.situacaoAlteradaPor && (
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                    por {provaSelecionada.situacaoAlteradaPor}
+                    {provaSelecionada.situacaoAlteradaEm
+                      ? ` · ${horaDe(provaSelecionada.situacaoAlteradaEm)}`
+                      : ""}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
       </div>
 
       {linhas.length === 0 ? (
@@ -191,90 +219,130 @@ export default function OrganizacaoInscritosPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <label className="inline-flex cursor-pointer items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={dorsal?.checkInFeito ?? false}
-                        onChange={(e) =>
-                          atualizarControles(inscricao.id, { checkInFeito: e.target.checked })
-                        }
-                        className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
-                      />
-                      <span
-                        className={`text-xs font-medium ${
-                          dorsal?.checkInFeito
-                            ? "text-brand-green"
-                            : "text-slate-400 dark:text-slate-500"
-                        }`}
-                      >
-                        {dorsal?.checkInFeito ? "Feito" : "Marcar"}
-                      </span>
-                    </label>
+                    <div>
+                      <label className="inline-flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={dorsal?.checkInFeito ?? false}
+                          onChange={(e) =>
+                            atualizarControles(inscricao.id, { checkInFeito: e.target.checked }, nomeOperador)
+                          }
+                          className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
+                        />
+                        <span
+                          className={`text-xs font-medium ${
+                            dorsal?.checkInFeito
+                              ? "text-brand-green"
+                              : "text-slate-400 dark:text-slate-500"
+                          }`}
+                        >
+                          {dorsal?.checkInFeito ? "Feito" : "Marcar"}
+                        </span>
+                      </label>
+                      {(() => {
+                        const aud = obterUltimaAuditoria(dorsal, "checkInFeito");
+                        return aud ? (
+                          <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                            {aud.usuario} · {horaDe(aud.em)}
+                          </p>
+                        ) : null;
+                      })()}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
-                    <label className="inline-flex cursor-pointer items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={dorsal?.kitEntregue ?? false}
-                        onChange={(e) =>
-                          atualizarControles(inscricao.id, { kitEntregue: e.target.checked })
-                        }
-                        className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
-                      />
-                      <span
-                        className={`text-xs font-medium ${
-                          dorsal?.kitEntregue
-                            ? "text-brand-green"
-                            : "text-slate-400 dark:text-slate-500"
-                        }`}
-                      >
-                        {dorsal?.kitEntregue ? "Entregue" : "Marcar"}
-                      </span>
-                    </label>
+                    <div>
+                      <label className="inline-flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={dorsal?.kitEntregue ?? false}
+                          onChange={(e) =>
+                            atualizarControles(inscricao.id, { kitEntregue: e.target.checked }, nomeOperador)
+                          }
+                          className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
+                        />
+                        <span
+                          className={`text-xs font-medium ${
+                            dorsal?.kitEntregue
+                              ? "text-brand-green"
+                              : "text-slate-400 dark:text-slate-500"
+                          }`}
+                        >
+                          {dorsal?.kitEntregue ? "Entregue" : "Marcar"}
+                        </span>
+                      </label>
+                      {(() => {
+                        const aud = obterUltimaAuditoria(dorsal, "kitEntregue");
+                        return aud ? (
+                          <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                            {aud.usuario} · {horaDe(aud.em)}
+                          </p>
+                        ) : null;
+                      })()}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
-                    <label className="inline-flex cursor-pointer items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={dorsal?.medalhaEntregue ?? false}
-                        onChange={(e) =>
-                          atualizarControles(inscricao.id, { medalhaEntregue: e.target.checked })
-                        }
-                        className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
-                      />
-                      <span
-                        className={`text-xs font-medium ${
-                          dorsal?.medalhaEntregue
-                            ? "text-brand-green"
-                            : "text-slate-400 dark:text-slate-500"
-                        }`}
-                      >
-                        {dorsal?.medalhaEntregue ? "Entregue" : "Marcar"}
-                      </span>
-                    </label>
+                    <div>
+                      <label className="inline-flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={dorsal?.medalhaEntregue ?? false}
+                          onChange={(e) =>
+                            atualizarControles(inscricao.id, { medalhaEntregue: e.target.checked }, nomeOperador)
+                          }
+                          className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
+                        />
+                        <span
+                          className={`text-xs font-medium ${
+                            dorsal?.medalhaEntregue
+                              ? "text-brand-green"
+                              : "text-slate-400 dark:text-slate-500"
+                          }`}
+                        >
+                          {dorsal?.medalhaEntregue ? "Entregue" : "Marcar"}
+                        </span>
+                      </label>
+                      {(() => {
+                        const aud = obterUltimaAuditoria(dorsal, "medalhaEntregue");
+                        return aud ? (
+                          <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                            {aud.usuario} · {horaDe(aud.em)}
+                          </p>
+                        ) : null;
+                      })()}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
-                    <label className="inline-flex cursor-pointer items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={dorsal?.alimentacaoEntregue ?? false}
-                        onChange={(e) =>
-                          atualizarControles(inscricao.id, {
-                            alimentacaoEntregue: e.target.checked,
-                          })
-                        }
-                        className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
-                      />
-                      <span
-                        className={`text-xs font-medium ${
-                          dorsal?.alimentacaoEntregue
-                            ? "text-brand-green"
-                            : "text-slate-400 dark:text-slate-500"
-                        }`}
-                      >
-                        {dorsal?.alimentacaoEntregue ? "Entregue" : "Marcar"}
-                      </span>
-                    </label>
+                    <div>
+                      <label className="inline-flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={dorsal?.alimentacaoEntregue ?? false}
+                          onChange={(e) =>
+                            atualizarControles(inscricao.id, {
+                              alimentacaoEntregue: e.target.checked,
+                            }, nomeOperador)
+                          }
+                          className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
+                        />
+                        <span
+                          className={`text-xs font-medium ${
+                            dorsal?.alimentacaoEntregue
+                              ? "text-brand-green"
+                              : "text-slate-400 dark:text-slate-500"
+                          }`}
+                        >
+                          {dorsal?.alimentacaoEntregue ? "Entregue" : "Marcar"}
+                        </span>
+                      </label>
+                      {(() => {
+                        const aud = obterUltimaAuditoria(dorsal, "alimentacaoEntregue");
+                        return aud ? (
+                          <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                            {aud.usuario} · {horaDe(aud.em)}
+                          </p>
+                        ) : null;
+                      })()}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                     {resultado?.tempo || "—"}
