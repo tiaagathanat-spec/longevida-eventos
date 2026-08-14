@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User, Copy, Check } from "lucide-react";
+import { ArrowLeft, User, Users, UserPlus, Copy, Check } from "lucide-react";
 import { useEventos, inscricoesEstaoAbertas } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
@@ -27,7 +27,7 @@ export default function InscricaoPage() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
-  const { atletas, atualizar: atualizarAtleta } = useAtletas();
+  const { atletas, criar: criarAtleta, atualizar: atualizarAtleta } = useAtletas();
   const { inscricoes, criar } = useInscricoes();
 
   const evento = obterEvento(eventoId);
@@ -44,6 +44,19 @@ export default function InscricaoPage() {
     [atletas, sessao.nome]
   );
 
+  // Perfil de atleta do usuário logado ("Eu mesmo(a)"), casado pelo
+  // e-mail da conta (fallback: mesmo nome). Se não existir, é criado na
+  // própria página antes de escolher a prova.
+  const selfAtleta = useMemo(
+    () =>
+      atletas.find(
+        (a) =>
+          (sessao.email ? a.email === sessao.email : false) ||
+          (sessao.nome ? a.nome === sessao.nome : false)
+      ),
+    [atletas, sessao.email, sessao.nome]
+  );
+
   const [atletaId, setAtletaId] = useState(meusAtletas[0]?.id ?? "");
   const [provaId, setProvaId] = useState("");
   const [copiadoPix, setCopiadoPix] = useState(false);
@@ -53,6 +66,13 @@ export default function InscricaoPage() {
     responsabilidade: false,
   });
   const [erroTermos, setErroTermos] = useState(false);
+
+  // "Eu mesmo(a)" ou "Outro atleta (responsável)". `null` = escolha
+  // automática: sem dependentes ou já com perfil próprio → "Para mim".
+  const [paraMim, setParaMim] = useState<boolean | null>(null);
+  const paraMimEfetivo = paraMim ?? (!!selfAtleta || meusAtletas.length === 0);
+  const [formEu, setFormEu] = useState({ nome: sessao.nome, dataNascimento: "", telefone: "" });
+  const [errosEu, setErrosEu] = useState<{ nome?: string; dataNascimento?: string }>({});
 
   // Dados do responsável legal, exigidos quando o atleta é menor de idade
   // na data do evento (regra central: menores de 18 precisam de
@@ -66,7 +86,9 @@ export default function InscricaoPage() {
   const [termoResponsavel, setTermoResponsavel] = useState(false);
   const [erroResponsavel, setErroResponsavel] = useState(false);
 
-  const atletaSelecionado = meusAtletas.find((a) => a.id === atletaId);
+  const atletaSelecionado = paraMimEfetivo
+    ? selfAtleta
+    : meusAtletas.find((a) => a.id === atletaId);
   const idadeNaData = atletaSelecionado && evento
     ? calcularIdadeNaData(atletaSelecionado.dataNascimento, evento.data)
     : null;
@@ -115,6 +137,14 @@ export default function InscricaoPage() {
       }));
     }
   }, [atletaSelecionado?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Seleciona o primeiro dependente quando a lista carrega e ainda não há
+  // atleta escolhido (a persistência do Supabase carrega de forma assíncrona).
+  useEffect(() => {
+    if (!atletaId && meusAtletas.length > 0) {
+      setAtletaId(meusAtletas[0].id);
+    }
+  }, [atletaId, meusAtletas]);
 
   function nomeModalidade(id: string) {
     return modalidades.find((m) => m.id === id)?.nome ?? "—";
@@ -172,7 +202,7 @@ export default function InscricaoPage() {
   }
 
   function handleConfirmar() {
-    const atleta = meusAtletas.find((a) => a.id === atletaId);
+    const atleta = atletaSelecionado;
     if (!atleta || !provaId) return;
 
     // Termos obrigatórios: autorização de imagem, termo de saúde e
@@ -223,6 +253,26 @@ export default function InscricaoPage() {
     router.push(`/portal/eventos/${eventoId}/pagamento`);
   }
 
+  // Cria o perfil de atleta do usuário logado ("Eu mesmo(a)") quando ele
+  // ainda não tem um cadastro, antes de escolher a prova.
+  function handleSalvarEu(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const novosErros: { nome?: string; dataNascimento?: string } = {};
+    if (!formEu.nome.trim()) novosErros.nome = "Informe seu nome.";
+    if (!formEu.dataNascimento) novosErros.dataNascimento = "Informe sua data de nascimento.";
+    setErrosEu(novosErros);
+    if (Object.keys(novosErros).length > 0) return;
+
+    criarAtleta({
+      nome: formEu.nome.trim(),
+      dataNascimento: formEu.dataNascimento,
+      categoriaId: "",
+      responsavelNome: sessao.nome,
+      email: sessao.email,
+      telefone: formEu.telefone.trim(),
+    });
+  }
+
   return (
     <div className="mx-auto max-w-xl px-6 py-8">
       <Link
@@ -236,35 +286,134 @@ export default function InscricaoPage() {
       <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Inscrição</h1>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{evento.nome}</p>
 
-      {meusAtletas.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-950">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Você ainda não tem atletas cadastrados.
+      <div className="mt-8 flex flex-col gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">
+            Para quem é esta inscrição?
           </p>
-          <Link href="/portal/meus-atletas" className="mt-4 inline-block">
-            <Button>Adicionar atleta</Button>
-          </Link>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setParaMim(true)}
+              className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors ${
+                paraMimEfetivo
+                  ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
+                  : "border-slate-200 text-slate-600 hover:border-brand-blue/50 dark:border-slate-700 dark:text-slate-300"
+              }`}
+            >
+              <UserPlus className="h-4 w-4" />
+              Eu mesmo(a)
+            </button>
+            <button
+              type="button"
+              onClick={() => setParaMim(false)}
+              className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors ${
+                !paraMimEfetivo
+                  ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
+                  : "border-slate-200 text-slate-600 hover:border-brand-blue/50 dark:border-slate-700 dark:text-slate-300"
+              }`}
+            >
+              <Users className="h-4 w-4" />
+              Outro atleta (responsável)
+            </button>
+          </div>
         </div>
-      ) : provasDoEvento.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-950">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Este evento ainda não tem provas disponíveis para inscrição.
-          </p>
-        </div>
-      ) : (
-        <div className="mt-8 flex flex-col gap-4">
-          <Select
-            id="atletaId"
-            label="Atleta"
-            value={atletaId}
-            onChange={(e) => setAtletaId(e.target.value)}
+
+        {provasDoEvento.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-950">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Este evento ainda não tem provas disponíveis para inscrição.
+            </p>
+          </div>
+        ) : paraMimEfetivo && !selfAtleta ? (
+          <form
+            onSubmit={handleSalvarEu}
+            noValidate
+            className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950"
           >
-            {meusAtletas.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.nome}
-              </option>
-            ))}
-          </Select>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">
+              Complete seus dados para se inscrever
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Você ainda não tem um cadastro de atleta nesta conta. Preencha abaixo para criar o
+              seu e continuar.
+            </p>
+            <div className="mt-4 flex flex-col gap-3">
+              <Input
+                id="formEuNome"
+                label="Nome completo"
+                value={formEu.nome}
+                onChange={(e) => setFormEu((atual) => ({ ...atual, nome: e.target.value }))}
+                error={errosEu.nome}
+              />
+              <Input
+                id="formEuDataNascimento"
+                type="date"
+                label="Data de nascimento"
+                value={formEu.dataNascimento}
+                onChange={(e) =>
+                  setFormEu((atual) => ({ ...atual, dataNascimento: e.target.value }))
+                }
+                error={errosEu.dataNascimento}
+              />
+              <Input
+                id="formEuTelefone"
+                label="Telefone (opcional)"
+                value={formEu.telefone}
+                onChange={(e) => setFormEu((atual) => ({ ...atual, telefone: e.target.value }))}
+              />
+            </div>
+            <Button type="submit" className="mt-4">
+              Salvar e continuar
+            </Button>
+          </form>
+        ) : !paraMimEfetivo && meusAtletas.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-950">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Você ainda não tem atletas cadastrados.
+            </p>
+            <Link href="/portal/meus-atletas" className="mt-4 inline-block">
+              <Button>Adicionar atleta</Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {paraMimEfetivo && selfAtleta ? (
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-brand-blue/10 p-2">
+                    <User className="h-4 w-4 text-brand-blue" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">
+                      {selfAtleta.nome}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {selfAtleta.email || sessao.email}
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href="/portal/perfil"
+                  className="text-xs font-medium text-brand-blue hover:underline"
+                >
+                  Editar perfil
+                </Link>
+              </div>
+            ) : (
+              <Select
+                id="atletaId"
+                label="Atleta"
+                value={atletaId}
+                onChange={(e) => setAtletaId(e.target.value)}
+              >
+                {meusAtletas.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nome}
+                  </option>
+                ))}
+              </Select>
+            )}
 
           {provasDisponiveis.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-950">
@@ -512,8 +661,9 @@ export default function InscricaoPage() {
               </Button>
             </>
           )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
