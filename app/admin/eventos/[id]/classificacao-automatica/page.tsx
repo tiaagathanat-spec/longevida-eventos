@@ -3,33 +3,37 @@
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Trophy, Lock, Unlock, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Lock, ShieldCheck, Unlock } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
-import { useProvas } from "@/lib/mock/provas-store";
+import {
+  useProvas,
+  situacaoDaProva,
+  SITUACAO_PROVA_LABEL,
+  SITUACAO_PROVA_CLASSE,
+} from "@/lib/mock/provas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useAtletas } from "@/lib/mock/atletas-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { usePublicacoes } from "@/lib/mock/publicacoes-store";
-import { classificar } from "@/lib/mock/classificacao";
+import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { TabelaClassificacaoGrupos } from "@/components/classificacao/tabela-classificacao-grupos";
 
 // Módulo Classificação Automática.
 //
 // A classificação nunca é digitada — é sempre recalculada a partir dos
 // tempos salvos em resultados-store, então qualquer tempo lançado ou
 // editado (seja pela tela de Cronometragem ou pela de Lançamento de
-// Resultados) já aparece refletido aqui automaticamente, sem nenhuma
-// ação extra.
+// Resultados) já aparece refletido aqui automaticamente.
 //
-// O "bloqueio após homologação" reaproveita o mesmo mecanismo de
-// publicação já existente (lib/mock/publicacoes-store.tsx, da Etapa 16)
-// — não duplica lógica nem cria um segundo controle de trava
-// desalinhado do resto do sistema.
-
-const MEDALHA: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
+// Ranking e medalhas são divididos por categoria · idade · sexo e só são
+// definidos (oficiais) depois que a prova é encerrada ("encerrada") e a
+// classificação é bloqueada/publicada. O bloqueio reaproveita o mesmo
+// mecanismo de publicação já existente (lib/mock/publicacoes-store.tsx).
 
 function formatarDataHora(iso: string) {
   return new Date(iso).toLocaleString("pt-BR", {
@@ -49,6 +53,7 @@ export default function ClassificacaoAutomaticaPage() {
   const { categorias } = useCategorias();
   const { provas } = useProvas();
   const { inscricoes } = useInscricoes();
+  const { atletas } = useAtletas();
   const { obterPorInscricao } = useResultados();
   const { estaPublicado, obterDataPublicacao, publicar, despublicar } = usePublicacoes();
 
@@ -61,6 +66,9 @@ export default function ClassificacaoAutomaticaPage() {
   const [provaId, setProvaId] = useState(provasDoEvento[0]?.id ?? "");
   const [confirmandoBloqueio, setConfirmandoBloqueio] = useState(false);
   const [confirmandoDesbloqueio, setConfirmandoDesbloqueio] = useState(false);
+
+  const prova = provas.find((p) => p.id === provaId);
+  const situacao = situacaoDaProva(prova);
 
   function nomeModalidade(id: string) {
     return modalidades.find((m) => m.id === id)?.nome ?? "—";
@@ -76,15 +84,30 @@ export default function ClassificacaoAutomaticaPage() {
 
   // Recalculada a cada render a partir dos tempos atuais — sempre que um
   // tempo muda em qualquer outra tela, esta lista reflete na próxima vez
-  // que o componente renderizar (o que já acontece automaticamente,
-  // porque resultados-store é um Context compartilhado).
-  const classificados = useMemo(() => {
+  // que o componente renderizar.
+  const { grupos, aguardando } = useMemo(() => {
     const comTempo = inscritosDaProva
-      .map((inscricao) => ({ inscricao, tempo: obterPorInscricao(inscricao.id)?.tempo ?? "" }))
+      .map((inscricao) => ({
+        inscricao,
+        tempo: obterPorInscricao(inscricao.id)?.tempo ?? "",
+        atleta: atletas.find((a) => a.nome === inscricao.atletaNome),
+        categoria: prova ? categorias.find((c) => c.id === prova.categoriaId) : undefined,
+      }))
       .filter((i) => i.tempo.trim() !== "");
 
-    return classificar(comTempo.map(({ inscricao, tempo }) => ({ item: inscricao, tempo })));
-  }, [inscritosDaProva, obterPorInscricao]);
+    const semTempo = inscritosDaProva.filter((i) => !obterPorInscricao(i.id)?.tempo);
+
+    const grupos = classificarPorGrupos(
+      comTempo.map(({ inscricao, tempo, atleta, categoria }) => ({
+        item: inscricao,
+        tempo,
+        atleta,
+        categoria,
+      }))
+    );
+
+    return { grupos, aguardando: semTempo };
+  }, [inscritosDaProva, obterPorInscricao, atletas, categorias, prova]);
 
   if (!evento) {
     return (
@@ -99,6 +122,7 @@ export default function ClassificacaoAutomaticaPage() {
 
   const bloqueada = provaId ? estaPublicado(provaId) : false;
   const dataBloqueio = provaId ? obterDataPublicacao(provaId) : undefined;
+  const temTempos = grupos.length > 0;
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
@@ -142,14 +166,28 @@ export default function ClassificacaoAutomaticaPage() {
               </Select>
             </div>
 
-            {classificados.length > 0 &&
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${SITUACAO_PROVA_CLASSE[situacao]}`}
+            >
+              {SITUACAO_PROVA_LABEL[situacao]}
+            </span>
+
+            {temTempos &&
               (bloqueada ? (
                 <Button variant="ghost" onClick={() => setConfirmandoDesbloqueio(true)} className="text-slate-500">
                   <Unlock className="h-4 w-4" />
                   Desbloquear
                 </Button>
               ) : (
-                <Button onClick={() => setConfirmandoBloqueio(true)}>
+                <Button
+                  onClick={() => setConfirmandoBloqueio(true)}
+                  disabled={situacao !== "encerrada"}
+                  title={
+                    situacao !== "encerrada"
+                      ? "Encerre a prova (Realizada) na tela de Provas antes de homologar a classificação."
+                      : undefined
+                  }
+                >
                   <Lock className="h-4 w-4" />
                   Bloquear classificação
                 </Button>
@@ -164,55 +202,21 @@ export default function ClassificacaoAutomaticaPage() {
             </div>
           )}
 
-          {classificados.length === 0 ? (
+          {temTempos ? (
+            <TabelaClassificacaoGrupos grupos={grupos} oficial={bloqueada} />
+          ) : (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Nenhum tempo lançado para esta prova ainda.
               </p>
             </div>
-          ) : (
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-              <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3 dark:border-slate-800">
-                <Trophy className="h-4 w-4 text-brand-blue" />
-                <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Classificação
-                </span>
-              </div>
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                    <th className="px-5 py-2.5 font-medium">Colocação</th>
-                    <th className="px-5 py-2.5 font-medium">Peito</th>
-                    <th className="px-5 py-2.5 font-medium">Nome</th>
-                    <th className="px-5 py-2.5 font-medium">Tempo</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {classificados.map(({ colocacao, item: inscricao, segundos }) => (
-                    <tr
-                      key={inscricao.id}
-                      className={colocacao <= 3 ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}
-                    >
-                      <td className="px-5 py-3 font-semibold text-slate-900 dark:text-white">
-                        {MEDALHA[colocacao] ? (
-                          <span className="text-lg">{MEDALHA[colocacao]}</span>
-                        ) : (
-                          colocacao
-                        )}
-                      </td>
-                      <td className="px-5 py-3 text-slate-600 dark:text-slate-300">
-                        {inscricao.numeroPeito || "—"}
-                      </td>
-                      <td className="px-5 py-3 font-medium text-slate-900 dark:text-white">
-                        {inscricao.atletaNome}
-                      </td>
-                      <td className="px-5 py-3 tabular-nums text-slate-600 dark:text-slate-300">
-                        {segundos.toFixed(2)}s
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          )}
+
+          {aguardando.length > 0 && (
+            <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                {aguardando.length} atleta(s) sem tempo lançado.
+              </p>
             </div>
           )}
         </>
@@ -221,7 +225,7 @@ export default function ClassificacaoAutomaticaPage() {
       <ConfirmDialog
         open={confirmandoBloqueio}
         title="Bloquear classificação"
-        description="Ao bloquear, esta classificação é homologada como oficial e os tempos ficam travados para edição nas telas de lançamento. Deseja continuar?"
+        description="Ao bloquear, esta classificação (já com a prova realizada) é homologada como oficial, com ranking e medalhas definidos, e os tempos ficam travados para edição. Deseja continuar?"
         confirmLabel="Bloquear"
         onCancel={() => setConfirmandoBloqueio(false)}
         onConfirm={() => {

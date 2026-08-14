@@ -5,13 +5,20 @@ import { Globe, Lock, ChevronDown, ChevronUp } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
-import { useProvas } from "@/lib/mock/provas-store";
+import {
+  useProvas,
+  situacaoDaProva,
+  SITUACAO_PROVA_LABEL,
+  SITUACAO_PROVA_CLASSE,
+} from "@/lib/mock/provas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useAtletas } from "@/lib/mock/atletas-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { usePublicacoes } from "@/lib/mock/publicacoes-store";
-import { classificar } from "@/lib/mock/classificacao";
+import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { TabelaClassificacaoGrupos } from "@/components/classificacao/tabela-classificacao-grupos";
 
 // Módulo Publicação dos Resultados.
 //
@@ -29,8 +36,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 // não é pública; a publicação só controla a visibilidade para o
 // atleta.
 
-const MEDALHA: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
-
 function formatarDataHora(iso: string) {
   return new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit",
@@ -47,6 +52,7 @@ export default function PublicacaoResultadosPage() {
   const { categorias } = useCategorias();
   const { provas } = useProvas();
   const { inscricoes } = useInscricoes();
+  const { atletas } = useAtletas();
   const { obterPorInscricao } = useResultados();
   const { estaPublicado, obterDataPublicacao, publicar, despublicar } = usePublicacoes();
 
@@ -66,11 +72,24 @@ export default function PublicacaoResultadosPage() {
   }
 
   function classificacaoDaProva(provaId: string) {
+    const prova = provas.find((p) => p.id === provaId);
     const inscritos = inscricoes.filter((i) => i.provaId === provaId && i.status === "confirmada");
     const comTempo = inscritos
-      .map((inscricao) => ({ inscricao, tempo: obterPorInscricao(inscricao.id)?.tempo ?? "" }))
+      .map((inscricao) => ({
+        inscricao,
+        tempo: obterPorInscricao(inscricao.id)?.tempo ?? "",
+        atleta: atletas.find((a) => a.nome === inscricao.atletaNome),
+        categoria: prova ? categorias.find((c) => c.id === prova.categoriaId) : undefined,
+      }))
       .filter((i) => i.tempo.trim() !== "");
-    return classificar(comTempo.map(({ inscricao, tempo }) => ({ item: inscricao, tempo })));
+    return classificarPorGrupos(
+      comTempo.map(({ inscricao, tempo, atleta, categoria }) => ({
+        item: inscricao,
+        tempo,
+        atleta,
+        categoria,
+      }))
+    );
   }
 
   // Regra central 10: a publicação só fica disponível quando todos os
@@ -119,10 +138,14 @@ export default function PublicacaoResultadosPage() {
           {provasOrdenadas.map((prova) => {
             const publicada = estaPublicado(prova.id);
             const dataPublicacao = obterDataPublicacao(prova.id);
-            const ranking = classificacaoDaProva(prova.id);
+            const situacao = situacaoDaProva(prova);
+            const provaEncerrada = situacao === "encerrada";
+            const grupos = classificacaoDaProva(prova.id);
+            const temTempos = grupos.some((g) => g.classificacao.length > 0);
             const estaExpandida = expandida === prova.id;
             const revisao = statusRevisaoDaProva(prova.id);
-            const publicacaoBloqueada = revisao.total > 0 && revisao.pendentes.length > 0;
+            const publicacaoBloqueada =
+              (revisao.total > 0 && revisao.pendentes.length > 0) || !provaEncerrada;
 
             return (
               <div
@@ -141,6 +164,12 @@ export default function PublicacaoResultadosPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${SITUACAO_PROVA_CLASSE[situacao]}`}
+                    >
+                      {SITUACAO_PROVA_LABEL[situacao]}
+                    </span>
+
                     <span
                       className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
                         publicada
@@ -175,11 +204,13 @@ export default function PublicacaoResultadosPage() {
                     ) : (
                       <Button
                         onClick={() => setConfirmando({ provaId: prova.id, acao: "publicar" })}
-                        disabled={ranking.length === 0 || publicacaoBloqueada}
+                        disabled={!temTempos || publicacaoBloqueada}
                         title={
-                          publicacaoBloqueada
-                            ? "Publique apenas depois de aprovar todos os resultados na Revisão de Resultados."
-                            : undefined
+                          !provaEncerrada
+                            ? "Encerre a prova (Realizada) antes de publicar os resultados."
+                            : publicacaoBloqueada
+                              ? "Publique apenas depois de aprovar todos os resultados na Revisão de Resultados."
+                              : undefined
                         }
                       >
                         Publicar Resultado
@@ -194,14 +225,22 @@ export default function PublicacaoResultadosPage() {
                   </div>
                 )}
 
-                {!publicada && revisao.total > 0 && revisao.pendentes.length === 0 && (
+                {!provaEncerrada && (
+                  <div className="flex items-center gap-2 border-t border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+                    <Lock className="h-3.5 w-3.5 shrink-0" />
+                    Prova ainda não encerrada — o ranking e as medalhas só são definidos após o
+                    encerramento da prova e a publicação.
+                  </div>
+                )}
+
+                {!publicada && !publicacaoBloqueada && revisao.total > 0 && revisao.pendentes.length === 0 && (
                   <div className="border-t border-slate-100 px-4 py-2 text-xs text-brand-green dark:border-slate-800">
                     Todos os resultados foram aprovados na Revisão de Resultados — pronto para
                     publicar.
                   </div>
                 )}
 
-                {publicacaoBloqueada && (
+                {publicacaoBloqueada && provaEncerrada && (
                   <div className="flex items-center gap-2 border-t border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
                     <Lock className="h-3.5 w-3.5 shrink-0" />
                     Publicação bloqueada: {revisao.pendentes.length} de {revisao.total}{" "}
@@ -211,44 +250,13 @@ export default function PublicacaoResultadosPage() {
 
                 {estaExpandida && (
                   <div className="border-t border-slate-100 dark:border-slate-800">
-                    {ranking.length === 0 ? (
+                    {!temTempos ? (
                       <p className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
                         Nenhum tempo lançado para esta prova ainda.
                       </p>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                        <thead>
-                          <tr className="border-b border-slate-100 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                            <th className="px-4 py-2 font-medium">Colocação</th>
-                            <th className="px-4 py-2 font-medium">Peito</th>
-                            <th className="px-4 py-2 font-medium">Nome</th>
-                            <th className="px-4 py-2 font-medium">Tempo</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                          {ranking.map(({ colocacao, item: inscricao, segundos }) => (
-                            <tr key={inscricao.id}>
-                              <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-white">
-                                {MEDALHA[colocacao] ? (
-                                  <span className="text-base">{MEDALHA[colocacao]}</span>
-                                ) : (
-                                  colocacao
-                                )}
-                              </td>
-                              <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">
-                                {inscricao.numeroPeito || "—"}
-                              </td>
-                              <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-white">
-                                {inscricao.atletaNome}
-                              </td>
-                              <td className="px-4 py-2.5 tabular-nums text-slate-600 dark:text-slate-300">
-                                {segundos.toFixed(2)}s
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <div className="p-4">
+                        <TabelaClassificacaoGrupos grupos={grupos} oficial={publicada && provaEncerrada} />
                       </div>
                     )}
                   </div>

@@ -11,7 +11,7 @@ import { useAtletas } from "@/lib/mock/atletas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { usePublicacoes } from "@/lib/mock/publicacoes-store";
-import { classificar } from "@/lib/mock/classificacao";
+import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
 import { useSessao } from "@/lib/mock/sessao";
 
 const MEDALHA: Record<number, string> = {
@@ -57,21 +57,44 @@ export default function MeusResultadosPage() {
         const tempo = obterPorInscricao(inscricao.id)?.tempo ?? "";
 
         // Classificação recalculada entre todos os confirmados da mesma
-        // prova, para saber a colocação do meu atleta especificamente.
+        // prova, dividida por grupo (categoria · idade · sexo) — a
+        // colocação do atleta é dentro do próprio grupo. Resultados só
+        // aparecem publicados (prova realizada), então a colocação já é
+        // a oficial.
+        const provaDaInscricao = provas.find((p) => p.id === inscricao.provaId);
         const todosDaProva = inscricoes.filter(
           (o) => o.provaId === inscricao.provaId && o.status === "confirmada"
         );
-        const ranking = classificar(
+        const grupos = classificarPorGrupos(
           todosDaProva
-            .map((o) => ({ item: o, tempo: obterPorInscricao(o.id)?.tempo ?? "" }))
+            .map((o) => ({
+              item: o,
+              tempo: obterPorInscricao(o.id)?.tempo ?? "",
+              atleta: atletas.find((a) => a.nome === o.atletaNome),
+              categoria: provaDaInscricao
+                ? categorias.find((c) => c.id === provaDaInscricao.categoriaId)
+                : undefined,
+            }))
             .filter((o) => o.tempo.trim() !== "")
         );
-        const colocacao = ranking.find((r) => r.item.id === inscricao.id)?.colocacao ?? null;
+        const colocacao =
+          grupos
+            .find((g) => g.classificacao.some((r) => r.item.id === inscricao.id))
+            ?.classificacao.find((r) => r.item.id === inscricao.id)?.colocacao ?? null;
 
         return { inscricao, prova, evento, tempo, colocacao };
       })
       .filter((r) => r.tempo.trim() !== "");
-  }, [inscricoes, meusNomesDeAtletas, provas, eventos, obterPorInscricao, estaPublicado]);
+  }, [
+    inscricoes,
+    meusNomesDeAtletas,
+    provas,
+    eventos,
+    atletas,
+    categorias,
+    obterPorInscricao,
+    estaPublicado,
+  ]);
 
   function nomeModalidade(id?: string) {
     return modalidades.find((m) => m.id === id)?.nome ?? "—";

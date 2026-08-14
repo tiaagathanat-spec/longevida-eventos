@@ -11,7 +11,7 @@ import { useAtletas } from "@/lib/mock/atletas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { usePublicacoes } from "@/lib/mock/publicacoes-store";
-import { classificar } from "@/lib/mock/classificacao";
+import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
 import { useSessao } from "@/lib/mock/sessao";
 
 // Medalha por colocação — mesma convenção usada em "Meus resultados".
@@ -104,16 +104,27 @@ export default function MinhaJornadaPage() {
           estaPublicado(r.inscricao.provaId)
       );
 
-    // Colocação recalculada por prova (apenas confirmados com tempo).
+    // Colocação recalculada por prova, dividida por grupo (categoria ·
+    // idade · sexo) — o pódio/medalha é dentro do grupo do atleta.
     const colocacoes = new Map<string, number>();
     const provasDistintas = [...new Set(comTempo.map((r) => r.inscricao.provaId))];
     provasDistintas.forEach((provaId) => {
+      const provaDaLista = provas.find((p) => p.id === provaId);
       const todosDaProva = inscricoes
         .filter((o) => o.provaId === provaId && o.status === "confirmada")
-        .map((o) => ({ item: o, tempo: obterPorInscricao(o.id)?.tempo ?? "" }))
+        .map((o) => ({
+          item: o,
+          tempo: obterPorInscricao(o.id)?.tempo ?? "",
+          atleta: atletas.find((a) => a.nome === o.atletaNome),
+          categoria: provaDaLista
+            ? categorias.find((c) => c.id === provaDaLista.categoriaId)
+            : undefined,
+        }))
         .filter((o) => o.tempo.trim() !== "");
-      classificar(todosDaProva).forEach(({ item, colocacao }) => {
-        colocacoes.set(item.id, colocacao);
+      classificarPorGrupos(todosDaProva).forEach((grupo) => {
+        grupo.classificacao.forEach(({ item, colocacao }) => {
+          colocacoes.set(item.id, colocacao);
+        });
       });
     });
 
@@ -136,6 +147,8 @@ export default function MinhaJornadaPage() {
     inscricoes,
     provas,
     eventos,
+    atletas,
+    categorias,
     obterPorInscricao,
     estaPublicado,
     nomeModalidade,

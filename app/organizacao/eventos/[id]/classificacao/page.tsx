@@ -3,24 +3,25 @@
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Trophy, Medal, Clock3, Globe, Lock } from "lucide-react";
+import { ArrowLeft, Clock3, Globe, Lock, ShieldAlert } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
-import { useProvas } from "@/lib/mock/provas-store";
+import {
+  useProvas,
+  situacaoDaProva,
+  SITUACAO_PROVA_LABEL,
+  SITUACAO_PROVA_CLASSE,
+} from "@/lib/mock/provas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useAtletas } from "@/lib/mock/atletas-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { usePublicacoes } from "@/lib/mock/publicacoes-store";
-import { classificar } from "@/lib/mock/classificacao";
+import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-
-const MEDALHA: Record<number, string> = {
-  1: "text-amber-500",
-  2: "text-slate-400",
-  3: "text-orange-700",
-};
+import { TabelaClassificacaoGrupos } from "@/components/classificacao/tabela-classificacao-grupos";
 
 function formatarDataHora(iso: string) {
   return new Date(iso).toLocaleString("pt-BR", {
@@ -29,12 +30,6 @@ function formatarDataHora(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function formatarTempo(segundos: number) {
-  const min = Math.floor(segundos / 60);
-  const resto = segundos - min * 60;
-  return `${String(min).padStart(2, "0")}:${resto.toFixed(2).padStart(5, "0")}`;
 }
 
 export default function ClassificacaoPage() {
@@ -46,6 +41,7 @@ export default function ClassificacaoPage() {
   const { categorias } = useCategorias();
   const { provas } = useProvas();
   const { inscricoes } = useInscricoes();
+  const { atletas } = useAtletas();
   const { obterPorInscricao } = useResultados();
   const { estaPublicado, obterDataPublicacao, publicar, despublicar } = usePublicacoes();
 
@@ -58,6 +54,9 @@ export default function ClassificacaoPage() {
   const [provaId, setProvaId] = useState(provasDoEvento[0]?.id ?? "");
   const [confirmandoPublicacao, setConfirmandoPublicacao] = useState(false);
   const [confirmandoDespublicacao, setConfirmandoDespublicacao] = useState(false);
+
+  const prova = provas.find((p) => p.id === provaId);
+  const situacao = situacaoDaProva(prova);
 
   function nomeModalidade(id: string) {
     return modalidades.find((m) => m.id === id)?.nome ?? "—";
@@ -72,25 +71,30 @@ export default function ClassificacaoPage() {
   );
 
   // Classificação é sempre recalculada a partir dos tempos lançados —
-  // nunca armazenada manualmente, por isso "automática".
-  const { classificados, aguardando } = useMemo(() => {
+  // nunca armazenada manualmente. Dividida por categoria · idade · sexo.
+  const { grupos, aguardando } = useMemo(() => {
     const comTempo = inscritosDaProva
       .map((inscricao) => ({
         inscricao,
         tempo: obterPorInscricao(inscricao.id)?.tempo ?? "",
+        atleta: atletas.find((a) => a.nome === inscricao.atletaNome),
+        categoria: prova ? categorias.find((c) => c.id === prova.categoriaId) : undefined,
       }))
       .filter((i) => i.tempo.trim() !== "");
 
-    const semTempo = inscritosDaProva.filter(
-      (inscricao) => !obterPorInscricao(inscricao.id)?.tempo
+    const semTempo = inscritosDaProva.filter((i) => !obterPorInscricao(i.id)?.tempo);
+
+    const grupos = classificarPorGrupos(
+      comTempo.map(({ inscricao, tempo, atleta, categoria }) => ({
+        item: inscricao,
+        tempo,
+        atleta,
+        categoria,
+      }))
     );
 
-    const ranking = classificar(
-      comTempo.map(({ inscricao, tempo }) => ({ item: inscricao, tempo }))
-    );
-
-    return { classificados: ranking, aguardando: semTempo };
-  }, [inscritosDaProva, obterPorInscricao]);
+    return { grupos, aguardando: semTempo };
+  }, [inscritosDaProva, obterPorInscricao, atletas, categorias, prova]);
 
   if (!evento) {
     return (
@@ -105,6 +109,8 @@ export default function ClassificacaoPage() {
 
   const publicado = provaId ? estaPublicado(provaId) : false;
   const dataPublicacao = provaId ? obterDataPublicacao(provaId) : undefined;
+  const oficial = situacao === "encerrada" && publicado;
+  const temTempos = grupos.length > 0;
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
@@ -146,7 +152,13 @@ export default function ClassificacaoPage() {
               </Select>
             </div>
 
-            {classificados.length > 0 &&
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${SITUACAO_PROVA_CLASSE[situacao]}`}
+            >
+              {SITUACAO_PROVA_LABEL[situacao]}
+            </span>
+
+            {temTempos &&
               (publicado ? (
                 <Button
                   variant="ghost"
@@ -157,57 +169,41 @@ export default function ClassificacaoPage() {
                   Despublicar
                 </Button>
               ) : (
-                <Button onClick={() => setConfirmandoPublicacao(true)}>
+                <Button
+                  onClick={() => setConfirmandoPublicacao(true)}
+                  disabled={situacao !== "encerrada"}
+                  title={
+                    situacao !== "encerrada"
+                      ? "Encerre a prova (Realizada) na tela de Provas antes de publicar os resultados."
+                      : undefined
+                  }
+                >
                   <Globe className="h-4 w-4" />
                   Publicar resultados
                 </Button>
               ))}
           </div>
 
-          {publicado && (
+          {oficial ? (
             <div className="mb-4 flex items-center gap-2 rounded-xl bg-brand-green/10 px-4 py-2.5 text-sm text-brand-green">
               <Globe className="h-4 w-4" />
-              Resultado oficial — publicado em {dataPublicacao ? formatarDataHora(dataPublicacao) : ""}
+              Resultado oficial — prova realizada e publicada em{" "}
+              {dataPublicacao ? formatarDataHora(dataPublicacao) : ""}
             </div>
-          )}
+          ) : situacao === "encerrada" && temTempos ? (
+            <div className="mb-4 flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+              <ShieldAlert className="h-4 w-4" />
+              Prova realizada. Publique os resultados para oficializar medalhas e ranking.
+            </div>
+          ) : null}
 
-          {classificados.length === 0 ? (
+          {temTempos ? (
+            <TabelaClassificacaoGrupos grupos={grupos} oficial={oficial} />
+          ) : (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Nenhum tempo lançado para esta prova ainda.
               </p>
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-              <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3 dark:border-slate-800">
-                <Trophy className="h-4 w-4 text-brand-blue" />
-                <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Classificação final
-                </span>
-              </div>
-              <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
-                {classificados.map(({ colocacao, item: inscricao, segundos }) => (
-                  <div key={inscricao.id} className="flex items-center justify-between px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
-                          colocacao <= 3
-                            ? `${MEDALHA[colocacao]} bg-current/10`
-                            : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                        }`}
-                      >
-                        {colocacao <= 3 ? <Medal className="h-4 w-4" /> : colocacao}
-                      </span>
-                      <span className="text-sm font-medium text-slate-900 dark:text-white">
-                        {inscricao.atletaNome}
-                      </span>
-                    </div>
-                    <span className="text-sm tabular-nums text-slate-600 dark:text-slate-300">
-                      {formatarTempo(segundos)}
-                    </span>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 
@@ -230,7 +226,7 @@ export default function ClassificacaoPage() {
       <ConfirmDialog
         open={confirmandoPublicacao}
         title="Publicar resultados"
-        description="Ao publicar, esta classificação passa a ser o resultado oficial da prova e os tempos ficam travados para edição. Deseja continuar?"
+        description="Ao publicar, a prova já realizada passa a ter o ranking e as medalhas oficiais, e os tempos ficam travados para edição. Deseja continuar?"
         confirmLabel="Publicar"
         onCancel={() => setConfirmandoPublicacao(false)}
         onConfirm={() => {

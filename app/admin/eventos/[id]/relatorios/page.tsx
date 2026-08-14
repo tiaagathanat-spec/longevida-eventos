@@ -11,7 +11,8 @@ import { useProvas } from "@/lib/mock/provas-store";
 import { useInscricoes, Inscricao } from "@/lib/mock/inscricoes-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
-import { classificar } from "@/lib/mock/classificacao";
+import { useAtletas } from "@/lib/mock/atletas-store";
+import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
@@ -71,6 +72,7 @@ export default function RelatoriosPage() {
   const { inscricoes } = useInscricoes();
   const { obterPorInscricao: obterResultado } = useResultados();
   const { obterPorInscricao: obterDorsal } = useDorsais();
+  const { atletas } = useAtletas();
 
   const evento = obterEvento(eventoId);
   const provasDoEvento = useMemo(
@@ -194,21 +196,33 @@ export default function RelatoriosPage() {
         };
       }
       case "classificacao_prova": {
+        const prova = provas.find((p) => p.id === provaId);
         const inscritos = inscritosDoEvento.filter(
           (i) => i.provaId === provaId && i.status === "confirmada"
         );
-        const comTempo = inscritos
-          .map((i) => ({ item: i, tempo: obterResultado(i.id)?.tempo ?? "" }))
-          .filter((i) => i.tempo.trim() !== "");
-        const ranking = classificar(comTempo);
+        const grupos = classificarPorGrupos(
+          inscritos
+            .map((i) => ({
+              item: i,
+              tempo: obterResultado(i.id)?.tempo ?? "",
+              atleta: atletas.find((a) => a.nome === i.atletaNome),
+              categoria: prova
+                ? categorias.find((c) => c.id === prova.categoriaId)
+                : undefined,
+            }))
+            .filter((i) => i.tempo.trim() !== "")
+        );
         return {
-          colunas: ["Colocação", "Peito", "Nome", "Tempo"],
-          linhas: ranking.map(({ colocacao, item, segundos }) => ({
-            Colocação: String(colocacao),
-            Peito: peitoDe(item),
-            Nome: item.atletaNome,
-            Tempo: `${segundos.toFixed(2)}s`,
-          })),
+          colunas: ["Grupo", "Colocação", "Peito", "Nome", "Tempo"],
+          linhas: grupos.flatMap((grupo) =>
+            grupo.classificacao.map(({ colocacao, item, segundos }) => ({
+              Grupo: grupo.rotulo,
+              Colocação: String(colocacao),
+              Peito: peitoDe(item),
+              Nome: item.atletaNome,
+              Tempo: `${segundos.toFixed(2)}s`,
+            }))
+          ),
         };
       }
       case "resultado_geral": {
@@ -217,28 +231,37 @@ export default function RelatoriosPage() {
           const inscritos = inscritosDoEvento.filter(
             (i) => i.provaId === prova.id && i.status === "confirmada"
           );
-          const comTempo = inscritos
-            .map((i) => ({ item: i, tempo: obterResultado(i.id)?.tempo ?? "" }))
-            .filter((i) => i.tempo.trim() !== "");
-          const ranking = classificar(comTempo);
-          ranking.forEach(({ colocacao, item, segundos }) => {
-            todasLinhas.push({
-              Prova: nomeProva(prova.id),
-              Colocação: String(colocacao),
-              Peito: peitoDe(item),
-              Nome: item.atletaNome,
-              Tempo: `${segundos.toFixed(2)}s`,
+          const grupos = classificarPorGrupos(
+            inscritos
+              .map((i) => ({
+                item: i,
+                tempo: obterResultado(i.id)?.tempo ?? "",
+                atleta: atletas.find((a) => a.nome === i.atletaNome),
+                categoria: categorias.find((c) => c.id === prova.categoriaId),
+              }))
+              .filter((i) => i.tempo.trim() !== "")
+          );
+          grupos.forEach((grupo) => {
+            grupo.classificacao.forEach(({ colocacao, item, segundos }) => {
+              todasLinhas.push({
+                Prova: nomeProva(prova.id),
+                Grupo: grupo.rotulo,
+                Colocação: String(colocacao),
+                Peito: peitoDe(item),
+                Nome: item.atletaNome,
+                Tempo: `${segundos.toFixed(2)}s`,
+              });
             });
           });
         });
         return {
-          colunas: ["Prova", "Colocação", "Peito", "Nome", "Tempo"],
+          colunas: ["Prova", "Grupo", "Colocação", "Peito", "Nome", "Tempo"],
           linhas: todasLinhas,
         };
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tipo, categoriaId, provaId, inscritosDoEvento, confirmadosDoEvento, provasDoEvento, provas]);
+  }, [tipo, categoriaId, provaId, inscritosDoEvento, confirmadosDoEvento, provasDoEvento, provas, atletas]);
 
   async function exportarExcel() {
     const XLSX = await import("xlsx");
