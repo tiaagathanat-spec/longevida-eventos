@@ -27,12 +27,21 @@ export type Resultado = {
   revisadoPor?: string;
   revisadoEm?: string; // ISO datetime
   revisaoObservacao?: string; // motivo quando rejeitado
+  // Auditoria da captura (módulo Cronometragem — itens 18/22/23):
+  cronometrista?: string; // quem registrou o tempo
+  capturadoEm?: string; // ISO datetime da captura
+  tempoAnterior?: string; // tempo que existia antes (estado anterior), quando sobrescrito
 };
 
 type ResultadosContextValue = {
   resultados: Resultado[];
   obterPorInscricao: (inscricaoId: string) => Resultado | undefined;
-  lancar: (inscricaoId: string, tempo: string, observacao?: string) => void;
+  lancar: (
+    inscricaoId: string,
+    tempo: string,
+    observacao?: string,
+    cronometrista?: string
+  ) => void;
   remover: (inscricaoId: string) => void;
   aprovar: (inscricaoId: string, usuario?: string) => void;
   rejeitar: (inscricaoId: string, observacao: string, usuario?: string) => void;
@@ -57,17 +66,22 @@ export function ResultadosProvider({ children }: { children: ReactNode }) {
       resultados,
       obterPorInscricao: (inscricaoId) =>
         resultados.find((r) => r.inscricaoId === inscricaoId),
-      lancar: (inscricaoId, tempo, observacao) => {
+      lancar: (inscricaoId, tempo, observacao, cronometrista) => {
         setResultados((atual) => {
+          const capturadoEm = new Date().toISOString();
           const existente = atual.find((r) => r.inscricaoId === inscricaoId);
           if (existente) {
-            // Tempo alterado: volta para aguardando revisão.
+            // Tempo alterado: registra o estado anterior para auditoria e
+            // volta para aguardando revisão.
             return atual.map((r) =>
               r.inscricaoId === inscricaoId
                 ? {
                     ...r,
                     tempo,
                     observacao: observacao ?? existente.observacao,
+                    tempoAnterior: existente.tempo,
+                    cronometrista: cronometrista ?? existente.cronometrista,
+                    capturadoEm: cronometrista ? capturadoEm : existente.capturadoEm,
                     revisao: "aguardando",
                     revisadoPor: undefined,
                     revisadoEm: undefined,
@@ -83,6 +97,8 @@ export function ResultadosProvider({ children }: { children: ReactNode }) {
               inscricaoId,
               tempo,
               observacao,
+              cronometrista,
+              capturadoEm: cronometrista ? capturadoEm : undefined,
               revisao: "aguardando",
             },
           ];
