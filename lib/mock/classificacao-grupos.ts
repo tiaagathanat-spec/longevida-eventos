@@ -13,7 +13,7 @@
 
 import type { Categoria } from "@/lib/mock/categorias-store";
 import type { Atleta } from "@/lib/mock/atletas-store";
-import { idadeEm, faixaEtariaPara } from "@/lib/mock/faixas-numeracao-store";
+import { idadeEm, faixaEtariaPara } from "@/lib/mock/faixas-numeracao";
 import { classificar, type ItemClassificacao } from "@/lib/mock/classificacao";
 
 export const SEXO_LABEL: Record<string, string> = {
