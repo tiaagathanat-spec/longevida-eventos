@@ -12,10 +12,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  enfileirarFila,
+  notificarMudancaFila,
+  obterPendentesFila,
+  removerDaFila,
+} from "@/lib/supabase/fila-offline";
 
-type Linha = Record<string, unknown>;
+export type Linha = Record<string, unknown>;
 
-function snakeParaCamel(linha: Linha): Linha {
+export function snakeParaCamel(linha: Linha): Linha {
   const saida: Linha = {};
   for (const [chave, valor] of Object.entries(linha)) {
     const camel = chave.replace(/_([a-z])/g, (_, letra: string) =>
@@ -26,7 +32,7 @@ function snakeParaCamel(linha: Linha): Linha {
   return saida;
 }
 
-function camelParaSnake(linha: Linha): Linha {
+export function camelParaSnake(linha: Linha): Linha {
   const saida: Linha = {};
   for (const [chave, valor] of Object.entries(linha)) {
     const snake = chave.replace(/[A-Z]/g, (letra) => `_${letra.toLowerCase()}`);
@@ -39,7 +45,7 @@ function camelParaSnake(linha: Linha): Linha {
 // tabelas-espelho usam `not null default ''`, e enviar `null` explícito
 // viola a restrição (erro 400). Ao omitir a chave, o PostgREST aplica o
 // default na criação e preserva o valor existente na edição (merge).
-function limparJson<T>(valor: T): T {
+export function limparJson<T>(valor: T): T {
   return JSON.parse(
     JSON.stringify(valor, (_chave, item) => (item === undefined ? undefined : item))
   ) as T;
@@ -115,8 +121,37 @@ export async function gravarLinhas<T>(
     return !bloqueioRls;
   } catch (err) {
     console.warn(`[persistencia] falha ao gravar ${tabela}:`, err);
+    // Falha de rede (a chamada lançou): guarda as linhas na fila offline
+    // para reconciliar quando a conexão voltar. O upsert é idempotente,
+    // então repetir não duplica. Erros de permissão/dados não caem aqui
+    // (são resposta do servidor, não exceção de rede).
+    for (const linha of linhas) {
+      enfileirarFila(tabela, camelParaSnake(limparJson(linha as Linha)));
+    }
     return false;
   }
+}
+
+// Reconcilia a fila offline: tenta reenviar cada item pendente e remove
+// os que foram persistidos (ou que nunca poderão ser — tabela inexistente
+// no ambiente). Bloqueios de permissão (RLS) mantêm o item na fila: o
+// bloqueio nunca é tratado como sucesso e o dado não é perdido.
+export async function processarFilaOffline(): Promise<void> {
+  const pendentes = obterPendentesFila();
+  if (pendentes.length === 0) return;
+  const supabase = createClient();
+  for (const item of pendentes) {
+    try {
+      const { error } = await supabase.from(item.tabela).upsert(item.linha);
+      if (!error || error.code === "42P01") {
+        removerDaFila(item.tabela, item.linha.id);
+      }
+      // Demais erros (ex.: sem rede): mantém na fila para próxima tentativa.
+    } catch {
+      // Rede indisponível: mantém na fila.
+    }
+  }
+  notificarMudancaFila();
 }
 
 type OpcoesPersistencia<T> = {
@@ -173,8 +208,15 @@ export function usePersistencia<T>(
           setPronto(true);
         }
       });
+    // Reconcilia pendências de sessões offline anteriores (falha de rede
+    // gravada na fila local) e volta a reconciliar quando o navegador
+    // restabelecer a conexão.
+    processarFilaOffline();
+    const aoFicarOnline = () => processarFilaOffline();
+    window.addEventListener("online", aoFicarOnline);
     return () => {
       ativo = false;
+      window.removeEventListener("online", aoFicarOnline);
     };
   }, [tabela, ordem]);
 

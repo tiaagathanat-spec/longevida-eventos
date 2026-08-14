@@ -11,6 +11,7 @@ import {
   Search,
   ShieldAlert,
   Timer,
+  WifiOff,
   X,
 } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
@@ -22,6 +23,8 @@ import { useResultados } from "@/lib/mock/resultados-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
 import { useQrCodes } from "@/lib/mock/qrcodes-store";
 import { useSessao } from "@/lib/mock/sessao";
+import { usePendentesOffline } from "@/lib/supabase/fila-offline";
+import { processarFilaOffline } from "@/lib/supabase/persistencia";
 
 // Módulo Cronometragem — pensado para uso rápido em tablet durante a
 // competição: campos grandes, poucos toques, salvar imediato por atleta.
@@ -125,6 +128,23 @@ export function CronometragemClient() {
   const [busca, setBusca] = useState("");
   const [salvoFlash, setSalvoFlash] = useState<FlashSalvo | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+
+  // Conectividade + fila offline: a captura segue funcionando sem rede e o
+  // banner avisa que há chegadas aguardando sincronização.
+  const pendentes = usePendentesOffline("app_resultados");
+  const [online, setOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine
+  );
+  useEffect(() => {
+    const aoFicarOnline = () => setOnline(true);
+    const aoFicarOffline = () => setOnline(false);
+    window.addEventListener("online", aoFicarOnline);
+    window.addEventListener("offline", aoFicarOffline);
+    return () => {
+      window.removeEventListener("online", aoFicarOnline);
+      window.removeEventListener("offline", aoFicarOffline);
+    };
+  }, []);
 
   // O cronômetro roda com referência em performance.now() (nunca soma
   // incrementos), então não acumula erro mesmo com o tab desfocado.
@@ -318,6 +338,36 @@ export function CronometragemClient() {
           </p>
         </div>
       </header>
+
+      {/* Aviso de conectividade / pendências de sincronização */}
+      {(!online || pendentes > 0) && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/40 dark:bg-amber-950/30">
+          <div className="flex items-start gap-2.5">
+            <WifiOff className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-300" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                {online
+                  ? `${pendentes} marcação(ões) aguardando sincronização`
+                  : "Você está offline"}
+              </p>
+              <p className="text-xs text-amber-700/90 dark:text-amber-300/80">
+                As chegadas continuam sendo capturadas localmente, com o
+                tempo original de cada uma, e serão sincronizadas quando a
+                conexão voltar.
+              </p>
+            </div>
+          </div>
+          {pendentes > 0 && (
+            <button
+              type="button"
+              onClick={() => processarFilaOffline()}
+              className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-700"
+            >
+              Sincronizar agora
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Seletor de modo */}
       <div className="mb-6 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1 dark:bg-slate-900">
