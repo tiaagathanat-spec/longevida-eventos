@@ -23,10 +23,13 @@ medida que forem passando. Qualquer divergência do esperado é um bug a reporta
 | 1.1 | `/` | Landing page carrega, sem erro. |
 | 1.2 | Lista de eventos pública (`/eventos`) | Eventos visíveis com os dados corretos. |
 | 1.3 | Detalhe do evento (`/eventos/[id]`) | Endereço completo (rua/qd/lote/CEP/setor/cidade/UF), mapa do Google Maps renderiza, percurso e horários corretos. |
-| 1.4 | Contagem de inscritos no evento público | Número exibido confere com a base (via RPC `app_inscritos_publicos`). |
-| 1.5 | Galeria pública (`/galeria/[id]`) | Fotos e vídeos públicos aparecem; link "entrar para ver mais" leva ao login. |
-| 1.6 | Vídeos do percurso na página do evento (`/eventos/[id]`) | Seção "Percurso da prova" exibe vídeos públicos (categoria percurso) com player funcional. |
-| 1.6 | Tentar acessar `/admin`, `/organizacao` ou `/portal` deslogado | Redireciona para `/login?redirect=...` e, após login, volta para a rota original. |
+| 1.4 | Provas no detalhe do evento | Seção "Provas" lista as provas com modalidade, categoria, tipo, horário, valor e situação. |
+| 1.5 | Categorias e modalidades no detalhe | Seções exibem categorias (com faixa etária) e modalidades (com distância) derivadas das provas. |
+| 1.6 | Patrocinadores no detalhe | Seção "Patrocinadores e apoiadores" mostra os vinculados ao evento com cota. |
+| 1.7 | Contagem de inscritos no evento público | Número exibido confere com a base (via RPC `app_inscritos_publicos`). |
+| 1.8 | Galeria pública (`/galeria/[id]`) | Fotos e vídeos públicos aparecem; link "entrar para ver mais" leva ao login. |
+| 1.9 | Vídeos do percurso na página do evento (`/eventos/[id]`) | Seção "Percurso da prova" exibe vídeos públicos (categoria percurso) com player funcional. |
+| 1.10 | Tentar acessar `/admin`, `/organizacao` ou `/portal` deslogado | Redireciona para `/login?redirect=...` e, após login, volta para a rota original. |
 
 ---
 
