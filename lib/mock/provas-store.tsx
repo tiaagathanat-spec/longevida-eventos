@@ -12,6 +12,8 @@
 import { createContext, useContext, useMemo, useState, ReactNode } from "react";
 import { usePersistencia } from "@/lib/supabase/persistencia";
 
+export type TipoIdentificacaoProva = "dorsal" | "card";
+
 export type Prova = {
   id: string;
   eventoId: string;
@@ -21,7 +23,14 @@ export type Prova = {
   horario: string; // "HH:mm", opcional
   observacoes: string;
   valor: number; // valor da inscrição desta prova, em reais
+  // Identificação do atleta nesta prova: "dorsal" (número de peito) ou
+  // "card" (credencial oficial 8,5x5,5cm). Ausente = dorsal (padrão).
+  tipoIdentificacao?: TipoIdentificacaoProva;
 };
+
+export function identificacaoDaProva(prova?: Prova): TipoIdentificacaoProva {
+  return prova?.tipoIdentificacao ?? "dorsal";
+}
 
 type ProvasContextValue = {
   provas: Prova[];

@@ -8,7 +8,7 @@ import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useTiposProva } from "@/lib/mock/tipos-prova-store";
-import { useProvas, Prova } from "@/lib/mock/provas-store";
+import { useProvas, Prova, TipoIdentificacaoProva, identificacaoDaProva } from "@/lib/mock/provas-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +23,7 @@ type FormState = {
   horario: string;
   observacoes: string;
   valor: string;
+  tipoIdentificacao: TipoIdentificacaoProva;
 };
 
 export default function ProvasDoEventoPage() {
@@ -45,6 +46,7 @@ export default function ProvasDoEventoPage() {
     horario: "",
     observacoes: "",
     valor: "",
+    tipoIdentificacao: "dorsal",
   };
 
   const [modalAberto, setModalAberto] = useState(false);
@@ -85,6 +87,7 @@ export default function ProvasDoEventoPage() {
       horario: prova.horario,
       observacoes: prova.observacoes,
       valor: String(prova.valor),
+      tipoIdentificacao: identificacaoDaProva(prova),
     });
     setErros({});
     setModalAberto(true);
@@ -115,6 +118,7 @@ export default function ProvasDoEventoPage() {
       horario: form.horario,
       observacoes: form.observacoes.trim(),
       valor: Number(form.valor.replace(",", ".")),
+      tipoIdentificacao: form.tipoIdentificacao,
     };
 
     if (editandoId) {
@@ -190,6 +194,17 @@ export default function ProvasDoEventoPage() {
                       {prova.horario}
                     </span>
                   )}
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      identificacaoDaProva(prova) === "card"
+                        ? "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300"
+                        : "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300"
+                    }`}
+                  >
+                    {identificacaoDaProva(prova) === "card"
+                      ? "Card 8,5×5,5 cm"
+                      : "Dorsal (número de peito)"}
+                  </span>
                   {prova.observacoes && <span>{prova.observacoes}</span>}
                 </div>
                 <p className="mt-1.5 text-sm font-semibold text-brand-green">
@@ -288,6 +303,25 @@ export default function ProvasDoEventoPage() {
             onChange={(e) => setForm({ ...form, valor: e.target.value })}
             error={erros.valor}
           />
+
+          <Select
+            id="tipoIdentificacao"
+            label="Identificação do atleta"
+            value={form.tipoIdentificacao}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                tipoIdentificacao: e.target.value as TipoIdentificacaoProva,
+              })
+            }
+          >
+            <option value="dorsal">Dorsal (número de peito)</option>
+            <option value="card">Card (credencial 8,5×5,5 cm)</option>
+          </Select>
+          <p className="mt-0 text-xs text-slate-400 dark:text-slate-500">
+            Dorsal gera número de peito e impressão 19×14,5 cm. Card usa a credencial oficial
+            8,5×5,5 cm com QR, sem número de peito.
+          </p>
 
           <Textarea
             id="observacoes"

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { ArrowLeft, Printer } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
-import { useProvas } from "@/lib/mock/provas-store";
+import { useProvas, identificacaoDaProva } from "@/lib/mock/provas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
@@ -63,6 +63,10 @@ export default function ImprimirDorsaisPage() {
   const cartoes = useMemo(() => {
     return inscricoes
       .filter((i) => i.eventoId === eventoId && i.status === "confirmada")
+      .filter((i) => {
+        const prova = provas.find((p) => p.id === i.provaId);
+        return prova && identificacaoDaProva(prova) === "dorsal";
+      })
       .map((inscricao) => {
         const prova = provas.find((p) => p.id === inscricao.provaId);
         const categoria = categorias.find((c) => c.id === prova?.categoriaId);

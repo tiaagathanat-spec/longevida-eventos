@@ -15,6 +15,7 @@ import {
   ListChecks,
   Image as ImageIcon,
   Hash,
+  CreditCard,
   Trophy,
   FileBarChart,
   FileText,
@@ -298,6 +299,13 @@ export default function VisualizarEventoPage() {
         >
           <Hash className="h-4 w-4 text-brand-blue" />
           Dorsais
+        </Link>
+        <Link
+          href={`/admin/eventos/${evento.id}/cards`}
+          className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 hover:border-brand-blue/40 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+        >
+          <CreditCard className="h-4 w-4 text-brand-blue" />
+          Cards
         </Link>
         <Link
           href={`/admin/eventos/${evento.id}/classificacao-automatica`}
