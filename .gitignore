@@ -34,6 +34,9 @@ next-env.d.ts
 # netlify
 .netlify
 
+# vercel
+.vercel
+
 # ide
 .vscode/
 .idea/

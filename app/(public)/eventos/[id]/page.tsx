@@ -16,6 +16,10 @@ import {
   ExternalLink,
   Route,
   Video,
+  Flag,
+  Tag,
+  Waves,
+  Handshake,
 } from "lucide-react";
 import {
   useEventos,
@@ -28,6 +32,19 @@ import {
 import { useContagemInscritosPublica } from "@/lib/mock/contagem-inscritos-publicos";
 import { useGaleria } from "@/lib/mock/galeria-store";
 import { useRegulamentos } from "@/lib/mock/regulamentos-store";
+import {
+  useProvas,
+  SITUACAO_PROVA_LABEL,
+  SITUACAO_PROVA_CLASSE,
+  situacaoDaProva,
+} from "@/lib/mock/provas-store";
+import { useModalidades, type Modalidade } from "@/lib/mock/modalidades-store";
+import { useCategorias, type Categoria } from "@/lib/mock/categorias-store";
+import { useTiposProva } from "@/lib/mock/tipos-prova-store";
+import {
+  usePatrocinadores,
+  COTA_LABEL,
+} from "@/lib/mock/patrocinadores-store";
 import { MapaGoogle, urlBuscaGoogleMaps } from "@/components/mapa/mapa-google";
 
 function formatarData(iso: string) {
@@ -38,6 +55,15 @@ function formatarData(iso: string) {
   });
 }
 
+function formatarValor(valor: number) {
+  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function faixaEtariaTexto(categoria: Categoria) {
+  if (categoria.idadeMaxima == null) return `${categoria.idadeMinima}+ anos`;
+  return `${categoria.idadeMinima} a ${categoria.idadeMaxima} anos`;
+}
+
 export default function EventoPublicoPage() {
   const params = useParams<{ id: string }>();
   const eventoId = params.id;
@@ -46,6 +72,11 @@ export default function EventoPublicoPage() {
   const { inscritos } = useContagemInscritosPublica(eventoId);
   const { obterCapa, listarPublicasPorEvento } = useGaleria();
   const { listarPorEvento } = useRegulamentos();
+  const { listarPorEvento: listarProvasDoEvento } = useProvas();
+  const { obterPorId: obterModalidade } = useModalidades();
+  const { obterPorId: obterCategoria } = useCategorias();
+  const { obterPorId: obterTipoProva } = useTiposProva();
+  const { listarPorEvento: listarPatrocinadores } = usePatrocinadores();
 
   const evento = obterEvento(eventoId);
 
@@ -72,6 +103,24 @@ export default function EventoPublicoPage() {
     (f) => f.categoria !== "capa" && f.categoria !== "percurso" && f.tipo !== "video"
   );
   const regulamentos = listarPorEvento(evento.id);
+  const provasDoEvento = listarProvasDoEvento(evento.id);
+  const categoriasDoEvento: Categoria[] = [
+    ...new Map(
+      provasDoEvento
+        .map((p) => obterCategoria(p.categoriaId))
+        .filter((c): c is Categoria => c !== undefined)
+        .map((c) => [c.id, c])
+    ).values(),
+  ];
+  const modalidadesDoEvento: Modalidade[] = [
+    ...new Map(
+      provasDoEvento
+        .map((p) => obterModalidade(p.modalidadeId))
+        .filter((m): m is Modalidade => m !== undefined)
+        .map((m) => [m.id, m])
+    ).values(),
+  ];
+  const patrocinadores = listarPatrocinadores(evento.id);
   const endereco = enderecoFormatado(evento);
   const enderecoParaBusca = enderecoParaMapa(evento);
 
@@ -226,6 +275,111 @@ export default function EventoPublicoPage() {
         </div>
       </section>
 
+      {/* Provas */}
+      {provasDoEvento.length > 0 && (
+        <section className="mb-10">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <Flag className="h-4 w-4 text-brand-blue" />
+            Provas
+          </h2>
+          <div className="flex flex-col gap-3">
+            {provasDoEvento.map((prova) => {
+              const modalidade = obterModalidade(prova.modalidadeId);
+              const categoria = obterCategoria(prova.categoriaId);
+              const tipo = obterTipoProva(prova.tipoProvaId);
+              const situacao = situacaoDaProva(prova);
+              return (
+                <div
+                  key={prova.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
+                >
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                        {modalidade?.nome ?? "Prova"}
+                      </p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${SITUACAO_PROVA_CLASSE[situacao]}`}
+                      >
+                        {SITUACAO_PROVA_LABEL[situacao]}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {categoria?.nome ?? "Sem categoria"} · {tipo?.nome ?? "Prova"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    {prova.horario && (
+                      <p className="flex items-center justify-end gap-1 text-xs text-slate-500 dark:text-slate-400">
+                        <Clock3 className="h-3.5 w-3.5" />
+                        {prova.horario}
+                      </p>
+                    )}
+                    {typeof prova.valor === "number" && prova.valor > 0 && (
+                      <p className="text-sm font-semibold text-brand-green">
+                        {formatarValor(prova.valor)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Categorias */}
+      {categoriasDoEvento.length > 0 && (
+        <section className="mb-10">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <Tag className="h-4 w-4 text-brand-blue" />
+            Categorias
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {categoriasDoEvento.map((categoria) => (
+              <span
+                key={categoria.id}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
+              >
+                {categoria.nome} · {faixaEtariaTexto(categoria)}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Modalidades */}
+      {modalidadesDoEvento.length > 0 && (
+        <section className="mb-10">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <Waves className="h-4 w-4 text-brand-blue" />
+            Modalidades
+          </h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {modalidadesDoEvento.map((modalidade) => (
+              <div
+                key={modalidade.id}
+                className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
+              >
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {modalidade.nome}
+                  {modalidade.distanciaMetros != null && (
+                    <span className="ml-2 rounded-full bg-brand-blue/10 px-2 py-0.5 text-[11px] font-medium text-brand-blue">
+                      {modalidade.distanciaMetros} m
+                    </span>
+                  )}
+                </p>
+                {modalidade.descricao && (
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {modalidade.descricao}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Regulamento */}
       {regulamentos.length > 0 && (
         <section className="mb-10">
@@ -336,6 +490,48 @@ export default function EventoPublicoPage() {
           >
             Ver galeria completa
           </Link>
+        </section>
+      )}
+
+      {/* Patrocinadores */}
+      {patrocinadores.length > 0 && (
+        <section className="mb-10">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <Handshake className="h-4 w-4 text-brand-blue" />
+            Patrocinadores e apoiadores
+          </h2>
+          <div className="flex flex-col gap-3 sm:grid sm:grid-cols-2">
+            {patrocinadores.map((patrocinador) => (
+              <div
+                key={patrocinador.id}
+                className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {patrocinador.nome}
+                  </p>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    {COTA_LABEL[patrocinador.cota]}
+                  </span>
+                </div>
+                {patrocinador.descricao && (
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {patrocinador.descricao}
+                  </p>
+                )}
+                {patrocinador.siteUrl && (
+                  <a
+                    href={patrocinador.siteUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-block text-xs font-medium text-brand-green hover:underline"
+                  >
+                    Conhecer
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
         </section>
       )}
     </div>
