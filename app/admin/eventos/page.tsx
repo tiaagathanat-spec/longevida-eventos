@@ -26,7 +26,7 @@ function formatarData(iso: string) {
 }
 
 export default function EventosPage() {
-  const { eventos, excluir, erro } = useEventos();
+  const { eventos, carregando, excluir, erro } = useEventos();
   const { inscricoes } = useInscricoes();
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
   const [filtroStatus, setFiltroStatus] = useState("todos");
@@ -83,7 +83,11 @@ export default function EventosPage() {
         </Select>
       </div>
 
-      {filtrados.length === 0 ? (
+      {carregando ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
+          <p className="text-sm text-slate-500 dark:text-slate-400">Carregando eventos…</p>
+        </div>
+      ) : filtrados.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Nenhum evento cadastrado ainda.
