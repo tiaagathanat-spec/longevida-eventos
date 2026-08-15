@@ -6,8 +6,8 @@
 // papel (autorização); excluir revoga o vínculo (perde o acesso à área
 // de organização).
 import { useState, FormEvent, useEffect, useCallback } from "react";
-import { UserPlus, Pencil, Trash2, Copy, Check, Wand2, ShieldCheck } from "lucide-react";
-import { PAPEL_ORGANIZACAO_LABEL } from "@/lib/mock/funcionarios-store";
+import { UserPlus, Pencil, Trash2, Copy, Check, Wand2, ShieldCheck, KeyRound } from "lucide-react";
+import { PAPEL_ORGANIZACAO_LABEL, MODULOS_ORGANIZACAO, type ModuloOrganizacao } from "@/lib/mock/funcionarios-store";
 import type { PapelOrganizacao } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,6 +109,14 @@ export default function UsuariosPage() {
     email: string;
     senha: string;
   } | null>(null);
+
+  // Permissões por evento do funcionário (app_funcionario_eventos).
+  const [permissoesDe, setPermissoesDe] = useState<RealFuncionario | null>(null);
+  const [eventosOrg, setEventosOrg] = useState<{ id: string; nome: string; status: string }[]>([]);
+  const [vinculos, setVinculos] = useState<Record<string, ModuloOrganizacao[]>>({});
+  const [carregandoPermissoes, setCarregandoPermissoes] = useState(false);
+  const [salvandoPermissoes, setSalvandoPermissoes] = useState(false);
+  const [erroPermissoes, setErroPermissoes] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -237,6 +245,85 @@ export default function UsuariosPage() {
     }
   }
 
+  async function abrirPermissoes(f: RealFuncionario) {
+    setPermissoesDe(f);
+    setErroPermissoes(null);
+    setCarregandoPermissoes(true);
+    setVinculos({});
+    setEventosOrg([]);
+    try {
+      const resposta = await fetch(`/api/admin/funcionarios/permissoes?usuarioId=${f.authUserId}`);
+      const dados = await resposta.json();
+      if (!resposta.ok) {
+        throw new Error(dados.erro ?? "Não foi possível carregar as permissões.");
+      }
+      setEventosOrg(dados.eventos ?? []);
+      const vinculosNovos: Record<string, ModuloOrganizacao[]> = {};
+      for (const v of dados.vinculos ?? []) {
+        vinculosNovos[v.eventoId] = Array.isArray(v.permissoes) ? v.permissoes : [];
+      }
+      setVinculos(vinculosNovos);
+    } catch (erroCatch) {
+      setErroPermissoes(
+        erroCatch instanceof Error ? erroCatch.message : "Falha ao carregar as permissões."
+      );
+    } finally {
+      setCarregandoPermissoes(false);
+    }
+  }
+
+  async function salvarPermissoes() {
+    if (!permissoesDe) return;
+    setSalvandoPermissoes(true);
+    setErroPermissoes(null);
+    try {
+      const eventos = Object.entries(vinculos).map(([eventoId, modulos]) => ({
+        eventoId,
+        permissoes: modulos,
+      }));
+      const resposta = await fetch("/api/admin/funcionarios/permissoes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuarioId: permissoesDe.authUserId, eventos }),
+      });
+      const dados = await resposta.json();
+      if (!resposta.ok) {
+        throw new Error(dados.erro ?? "Não foi possível salvar as permissões.");
+      }
+      setPermissoesDe(null);
+    } catch (erroCatch) {
+      setErroPermissoes(
+        erroCatch instanceof Error ? erroCatch.message : "Falha ao salvar as permissões."
+      );
+    } finally {
+      setSalvandoPermissoes(false);
+    }
+  }
+
+  // Presença da chave no objeto = acesso concedido àquele evento. Array
+  // vazio = herda os módulos padrão do papel; preenchido = somente os
+  // módulos listados (mesma regra de app_funcionario_eventos).
+  function alternarAcessoEvento(eventoId: string) {
+    setVinculos((atual) => {
+      const proximo = { ...atual };
+      if (eventoId in proximo) {
+        delete proximo[eventoId];
+      } else {
+        proximo[eventoId] = [];
+      }
+      return proximo;
+    });
+  }
+
+  function alternarModulo(eventoId: string, modulo: ModuloOrganizacao) {
+    setVinculos((atual) => {
+      const atualDoEvento = atual[eventoId] ?? [];
+      const tem = atualDoEvento.includes(modulo);
+      const novo = tem ? atualDoEvento.filter((m) => m !== modulo) : [...atualDoEvento, modulo];
+      return { ...atual, [eventoId]: novo };
+    });
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
@@ -291,6 +378,13 @@ export default function UsuariosPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        aria-label={`Permissões de ${f.nome}`}
+                        onClick={() => abrirPermissoes(f)}
+                      >
+                        <KeyRound className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         aria-label={`Editar ${f.nome}`}
@@ -455,6 +549,102 @@ export default function UsuariosPage() {
             </Button>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={!!permissoesDe}
+        title={permissoesDe ? `Permissões de ${permissoesDe.nome}` : "Permissões"}
+        onClose={() => setPermissoesDe(null)}
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Escolha em quais eventos este funcionário atua e quais módulos
+            (ações) ficam liberados em cada um. Sem módulos marcados, ele
+            herda as permissões padrão do papel.
+          </p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            Atenção: se nenhum evento for marcado, o funcionário volta a ver
+            todos os eventos da organização (comportamento padrão).
+          </p>
+
+          {erroPermissoes && (
+            <p role="alert" className="text-sm text-red-500">
+              {erroPermissoes}
+            </p>
+          )}
+
+          {carregandoPermissoes ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Carregando eventos…
+            </p>
+          ) : eventosOrg.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Nenhum evento cadastrado na organização ainda.
+            </p>
+          ) : (
+            <div className="flex max-h-80 flex-col gap-3 overflow-y-auto pr-1">
+              {eventosOrg.map((evento) => {
+                const modulos = vinculos[evento.id] ?? null;
+                const temAcesso = modulos !== undefined && modulos !== null;
+                return (
+                  <div
+                    key={evento.id}
+                    className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"
+                  >
+                    <label className="flex cursor-pointer items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={temAcesso}
+                        onChange={() => alternarAcessoEvento(evento.id)}
+                        className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue"
+                      />
+                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                        {evento.nome}
+                      </span>
+                    </label>
+                    {temAcesso && (
+                      <div className="mt-3 grid grid-cols-2 gap-1.5">
+                        {MODULOS_ORGANIZACAO.map((m) => {
+                          const marcado = (modulos ?? []).includes(m.chave);
+                          return (
+                            <label
+                              key={m.chave}
+                              className="flex cursor-pointer items-center gap-1.5 rounded-lg px-1 py-0.5"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={marcado}
+                                onChange={() => alternarModulo(evento.id, m.chave)}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-brand-blue focus:ring-brand-blue"
+                              />
+                              <span className="text-xs text-slate-600 dark:text-slate-300">
+                                {m.label}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="mt-2 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setPermissoesDe(null)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              isLoading={salvandoPermissoes}
+              disabled={carregandoPermissoes}
+              onClick={salvarPermissoes}
+            >
+              Salvar permissões
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <ConfirmDialog
