@@ -68,16 +68,38 @@ export function limparJson<T>(valor: T): T {
 
 // Carrega todas as linhas de uma tabela. Retorna `null` quando a tabela
 // não existe ou a consulta falhou (o chamador mantém o seed em memória).
+//
+// O token de acesso do cookie pode estar expirado (sessões duram ~1h). O
+// middleware renova o token a cada request, mas em um reload/primeiro
+// render o cliente pode disparar a consulta com um token vencido → 401/403,
+// o que fazia o `carregar` retornar `null` intermitentemente e as telas
+// mostrarem o seed demo como se fosse dado real ("eventos testes voltam ao
+// recarregar"). Aqui, em erro de autenticação, renova a sessão e tenta UMA
+// vez mais antes de desistir.
 export async function carregar<T>(
   tabela: string,
   ordem?: string
 ): Promise<T[] | null> {
-  try {
+  async function consultar() {
     const supabase = createClient();
     await supabase.auth.getSession();
     let query = supabase.from(tabela).select("*");
     if (ordem) query = query.order(ordem);
-    const { data, error } = await query;
+    return query;
+  }
+  try {
+    let supabase = await consultar();
+    let { data, error } = await supabase;
+    // Sessão vencida: renova o token e repete a consulta uma vez.
+    if (error && (error.code === "401" || error.code === "403" || error.code === "PGRST301")) {
+      const renovado = createClient();
+      await renovado.auth.refreshSession();
+      let query = renovado.from(tabela).select("*");
+      if (ordem) query = query.order(ordem);
+      const resultado = await query;
+      data = resultado.data;
+      error = resultado.error;
+    }
     if (error) return null;
     return ((data ?? []).map((l) => snakeParaCamel(l as Linha)) as T[]);
   } catch {
@@ -245,8 +267,12 @@ export function usePersistencia<T>(
         if (linhas === null) {
           // Falha ao carregar. Se há sessão, expõe o motivo (os dados
           // reais não chegaram) em vez de mostrar o seed silenciosamente —
-          // que parece um "reset" das informações. Sem sessão (páginas
-          // públicas) o seed é o comportamento esperado e nada é exibido.
+          // que parece um "reset" das informações. Nesse caso o seed (dados
+          // de demonstração dos primeiros rascunhos) também NÃO é exibido
+          // como se fosse dado real: ele não existe no banco, não pode ser
+          // excluído de verdade e voltaria a cada recarga. A tela mostra o
+          // estado vazio + o motivo, e uma nova recarga busca o real.
+          // Sem sessão (páginas públicas) o seed é o comportamento esperado.
           createClient()
             .auth.getSession()
             .then(({ data: sessao }) => {
@@ -254,6 +280,13 @@ export function usePersistencia<T>(
                 setErro(
                   `Não foi possível carregar os dados de ${tabela} (sem conexão ou sem permissão). Recarregue a página.`
                 );
+                // Zera os dados exibidos e a base de sincronização (mesma
+                // referência, para o efeito de persistência não disparar):
+                // evita que o seed demo apareça como real e que uma edição
+                // seguinte tente re-gravar essas linhas inexistentes.
+                const vazio: T[] = [];
+                ultimoSincronizadoRef.current = vazio;
+                setDados(vazio);
               }
             });
           return;
