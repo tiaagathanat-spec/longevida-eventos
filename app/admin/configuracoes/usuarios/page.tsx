@@ -1,16 +1,13 @@
 "use client";
 
-import { useState, FormEvent, useEffect, useMemo } from "react";
-import { UserPlus, Pencil, Trash2, KeyRound, Copy, Check, Wand2, ShieldCheck } from "lucide-react";
-import {
-  useFuncionarios,
-  Funcionario,
-  PAPEL_ORGANIZACAO_LABEL,
-  ORGANIZACOES_DEMO,
-  ModuloOrganizacao,
-  MODULOS_ORGANIZACAO,
-  PERMISSOES_POR_PAPEL,
-} from "@/lib/mock/funcionarios-store";
+// Gestão da equipe REAL de funcionários (contas autenticadas vinculadas
+// à organização via organizacao_usuarios). Fonte única: API
+// /api/admin/funcionarios — nada de catálogo mock aqui. Editar troca o
+// papel (autorização); excluir revoga o vínculo (perde o acesso à área
+// de organização).
+import { useState, FormEvent, useEffect, useCallback } from "react";
+import { UserPlus, Pencil, Trash2, Copy, Check, Wand2, ShieldCheck } from "lucide-react";
+import { PAPEL_ORGANIZACAO_LABEL } from "@/lib/mock/funcionarios-store";
 import type { PapelOrganizacao } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,15 +23,22 @@ const PAPEL_STYLE: Record<PapelOrganizacao, string> = {
   leitura: "bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
 };
 
+type RealFuncionario = {
+  authUserId: string;
+  nome: string;
+  email: string;
+  telefone: string;
+  papel: PapelOrganizacao;
+  ativo: boolean;
+  vinculadoEm: string | null;
+};
+
 type FormDados = {
   nome: string;
   email: string;
   telefone: string;
   senha: string;
   papel: PapelOrganizacao;
-  organizacaoId: string;
-  ativo: boolean;
-  permissoes: ModuloOrganizacao[];
 };
 
 const FORM_VAZIO: FormDados = {
@@ -43,9 +47,6 @@ const FORM_VAZIO: FormDados = {
   telefone: "",
   senha: "",
   papel: "organizador",
-  organizacaoId: "1",
-  ativo: true,
-  permissoes: PERMISSOES_POR_PAPEL.organizador,
 };
 
 function gerarSenha() {
@@ -55,9 +56,9 @@ function gerarSenha() {
   return Array.from(rnd, (b) => charset[b % charset.length]).join("");
 }
 
-// Aviso quando a equipe real não pôde ser carregada da API (nunca
-// esconder falha de leitura).
-function AlertaEquipeReal({ erro }: { erro: string | null }) {
+// Aviso quando a equipe não pôde ser carregada da API (nunca esconder
+// falha de leitura).
+function AlertaFuncionarios({ erro }: { erro: string | null }) {
   if (!erro) return null;
   return (
     <div className="mb-6 flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
@@ -70,7 +71,8 @@ function AlertaEquipeReal({ erro }: { erro: string | null }) {
   );
 }
 
-function BotaoCopiar({ texto, label }: { texto: string; label: string }) {  const [copiado, setCopiado] = useState(false);
+function BotaoCopiar({ texto, label }: { texto: string; label: string }) {
+  const [copiado, setCopiado] = useState(false);
   async function copiar() {
     try {
       await navigator.clipboard.writeText(texto);
@@ -93,13 +95,14 @@ function BotaoCopiar({ texto, label }: { texto: string; label: string }) {  cons
 }
 
 export default function UsuariosPage() {
-  const { funcionarios, criar, atualizar, excluir } = useFuncionarios();
+  const [funcionarios, setFuncionarios] = useState<RealFuncionario[]>([]);
+  const [erroFuncionarios, setErroFuncionarios] = useState<string | null>(null);
 
   const [modalAberto, setModalAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState<FormDados>(FORM_VAZIO);
   const [erro, setErro] = useState<string | null>(null);
-  const [excluindo, setExcluindo] = useState<Funcionario | null>(null);
+  const [excluindo, setExcluindo] = useState<RealFuncionario | null>(null);
   const [submetendo, setSubmetendo] = useState(false);
   const [credenciais, setCredenciais] = useState<{
     nome: string;
@@ -107,78 +110,25 @@ export default function UsuariosPage() {
     senha: string;
   } | null>(null);
 
-  // Equipe REAL (contas autenticadas vinculadas à organização) — vem da
-  // API /api/admin/funcionarios (organizacao_usuarios + usuarios).
-  const [equipeReal, setEquipeReal] = useState<
-    {
-      authUserId: string;
-      nome: string;
-      email: string;
-      telefone: string;
-      papel: PapelOrganizacao;
-      ativo: boolean;
-      vinculadoEm: string | null;
-    }[]
-  >([]);
-  const [erroEquipeReal, setErroEquipeReal] = useState<string | null>(null);
-
-  useEffect(() => {
-    let ativo = true;
-    fetch("/api/admin/funcionarios")
-      .then(async (res) => {
-        const dados = await res.json();
-        if (!res.ok) throw new Error(dados.erro ?? "Não foi possível carregar a equipe.");
-        if (ativo) setEquipeReal(dados.funcionarios ?? []);
-      })
-      .catch((e) => {
-        if (ativo) setErroEquipeReal(e instanceof Error ? e.message : "Falha ao carregar a equipe.");
-      });
-    return () => {
-      ativo = false;
-    };
+  const carregar = useCallback(async () => {
+    try {
+      const resposta = await fetch("/api/admin/funcionarios");
+      const dados = await resposta.json();
+      if (!resposta.ok) {
+        throw new Error(dados.erro ?? "Não foi possível carregar a equipe.");
+      }
+      setFuncionarios(dados.funcionarios ?? []);
+      setErroFuncionarios(null);
+    } catch (e) {
+      setErroFuncionarios(
+        e instanceof Error ? e.message : "Falha ao carregar a equipe."
+      );
+    }
   }, []);
 
-  // Linhas da tabela: funcionários do catálogo (demo/editable) + equipe
-  // real (somente leitura), sem duplicar por e-mail — a conta real vence.
-  const linhas = useMemo(() => {
-    type Linha = {
-      id: string;
-      nome: string;
-      email: string;
-      telefone: string;
-      papel: PapelOrganizacao;
-      organizacaoId: string;
-      ativo: boolean;
-      permissoes: ModuloOrganizacao[];
-      real: boolean;
-    };
-    const emailsReais = new Set(equipeReal.map((r) => r.email.toLowerCase()));
-    const catálogo: Linha[] = funcionarios
-      .filter((f) => !emailsReais.has(f.email.trim().toLowerCase()))
-      .map((f) => ({
-        id: f.id,
-        nome: f.nome,
-        email: f.email,
-        telefone: f.telefone,
-        papel: f.papel,
-        organizacaoId: f.organizacaoId,
-        ativo: f.ativo,
-        permissoes: f.permissoes ?? PERMISSOES_POR_PAPEL[f.papel],
-        real: false,
-      }));
-    const reais: Linha[] = equipeReal.map((r) => ({
-      id: r.authUserId,
-      nome: r.nome,
-      email: r.email,
-      telefone: r.telefone,
-      papel: r.papel,
-      organizacaoId: "",
-      ativo: r.ativo,
-      permissoes: PERMISSOES_POR_PAPEL[r.papel],
-      real: true,
-    }));
-    return [...catálogo, ...reais].sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [funcionarios, equipeReal]);
+  useEffect(() => {
+    carregar();
+  }, [carregar]);
 
   function abrirNovo() {
     setEditandoId(null);
@@ -187,17 +137,14 @@ export default function UsuariosPage() {
     setModalAberto(true);
   }
 
-  function abrirEdicao(f: Funcionario) {
-    setEditandoId(f.id);
+  function abrirEdicao(f: RealFuncionario) {
+    setEditandoId(f.authUserId);
     setForm({
       nome: f.nome,
       email: f.email,
       telefone: f.telefone,
       senha: "",
       papel: f.papel,
-      organizacaoId: f.organizacaoId,
-      ativo: f.ativo,
-      permissoes: f.permissoes ?? PERMISSOES_POR_PAPEL[f.papel],
     });
     setErro(null);
     setModalAberto(true);
@@ -209,16 +156,29 @@ export default function UsuariosPage() {
       setErro("Informe pelo menos nome e e-mail do funcionário.");
       return;
     }
-    if (editandoId) {
-      const { senha: _ignorada, ...dadosFuncionario } = form;
-      atualizar(editandoId, dadosFuncionario);
-      setModalAberto(false);
-      return;
-    }
-
     setSubmetendo(true);
     setErro(null);
     try {
+      if (editandoId) {
+        const resposta = await fetch("/api/admin/funcionarios", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            usuarioId: editandoId,
+            nome: form.nome.trim(),
+            telefone: form.telefone.trim(),
+            papel: form.papel,
+          }),
+        });
+        const dados = await resposta.json();
+        if (!resposta.ok) {
+          throw new Error(dados.erro ?? "Não foi possível atualizar o funcionário.");
+        }
+        await carregar();
+        setModalAberto(false);
+        return;
+      }
+
       const resposta = await fetch("/api/admin/funcionarios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -227,7 +187,7 @@ export default function UsuariosPage() {
           email: form.email.trim(),
           telefone: form.telefone.trim(),
           papel: form.papel,
-          ativo: form.ativo,
+          ativo: true,
           senha: form.senha,
         }),
       });
@@ -235,9 +195,7 @@ export default function UsuariosPage() {
       if (!resposta.ok) {
         throw new Error(dados.erro ?? "Não foi possível criar a conta do funcionário.");
       }
-
-      const { senha: _ignorada, ...dadosFuncionario } = form;
-      criar(dadosFuncionario);
+      await carregar();
       setModalAberto(false);
       setCredenciais({
         nome: form.nome.trim(),
@@ -246,24 +204,37 @@ export default function UsuariosPage() {
       });
     } catch (erroCatch) {
       setErro(
-        erroCatch instanceof Error ? erroCatch.message : "Não foi possível criar a conta."
+        erroCatch instanceof Error ? erroCatch.message : "Não foi possível salvar."
       );
     } finally {
       setSubmetendo(false);
     }
   }
 
-  function nomeOrganizacao(id: string) {
-    return ORGANIZACOES_DEMO.find((o) => o.id === id)?.nome ?? "—";
-  }
-
-  function togglePermissao(modulo: ModuloOrganizacao) {
-    setForm((atual) => ({
-      ...atual,
-      permissoes: atual.permissoes.includes(modulo)
-        ? atual.permissoes.filter((m) => m !== modulo)
-        : [...atual.permissoes, modulo],
-    }));
+  async function excluir() {
+    if (!excluindo) return;
+    setSubmetendo(true);
+    setErro(null);
+    try {
+      const resposta = await fetch("/api/admin/funcionarios", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuarioId: excluindo.authUserId }),
+      });
+      const dados = await resposta.json();
+      if (!resposta.ok) {
+        throw new Error(dados.erro ?? "Não foi possível remover o funcionário.");
+      }
+      await carregar();
+      setExcluindo(null);
+    } catch (erroCatch) {
+      setExcluindo(null);
+      setErroFuncionarios(
+        erroCatch instanceof Error ? erroCatch.message : "Falha ao remover o funcionário."
+      );
+    } finally {
+      setSubmetendo(false);
+    }
   }
 
   return (
@@ -275,7 +246,7 @@ export default function UsuariosPage() {
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Cadastre a equipe de organização e escolha quem pode acessar a área de trabalho
-            (organizadores, cronometragem, financeiro).
+            (organizadores, cronometragem, financeiro). Excluir revoga o acesso imediatamente.
           </p>
         </div>
         <Button onClick={abrirNovo}>
@@ -284,12 +255,12 @@ export default function UsuariosPage() {
         </Button>
       </header>
 
-      <AlertaEquipeReal erro={erroEquipeReal} />
+      <AlertaFuncionarios erro={erroFuncionarios} />
 
-      {linhas.length === 0 ? (
+      {funcionarios.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Nenhum funcionário cadastrado ainda.
+            Nenhum funcionário vinculado à organização ainda.
           </p>
         </div>
       ) : (
@@ -299,25 +270,14 @@ export default function UsuariosPage() {
               <tr className="border-b border-slate-100 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
                 <th className="px-4 py-3 font-medium">Funcionário</th>
                 <th className="px-4 py-3 font-medium">Papel</th>
-                <th className="px-4 py-3 font-medium">Permissões</th>
-                <th className="px-4 py-3 font-medium">Organização</th>
-                <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {linhas.map((f) => (
-                <tr key={f.id}>
+              {funcionarios.map((f) => (
+                <tr key={f.authUserId}>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-slate-900 dark:text-white">
-                      {f.nome}
-                      {f.real && (
-                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brand-blue/10 px-2 py-0.5 text-[11px] font-medium text-brand-blue">
-                          <ShieldCheck className="h-3 w-3" />
-                          Conta real
-                        </span>
-                      )}
-                    </p>
+                    <p className="font-medium text-slate-900 dark:text-white">{f.nome}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {f.email} · {f.telefone || "sem telefone"}
                     </p>
@@ -330,55 +290,23 @@ export default function UsuariosPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => abrirEdicao(f)}
-                      disabled={f.real}
-                      title={f.real ? "Conta real — papel definido no vínculo da organização" : undefined}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                    >
-                      <KeyRound className="h-3 w-3" />
-                      {(f.permissoes ?? []).length} funções
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                    {f.real ? "Longevida (produção)" : nomeOrganizacao(f.organizacaoId)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        f.ativo
-                          ? "bg-brand-green/10 text-brand-green"
-                          : "bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                      }`}
-                    >
-                      {f.ativo ? "Ativo" : "Inativo"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {f.real ? (
-                      <span className="text-xs text-slate-400 dark:text-slate-500">
-                        Gerenciada pelo vínculo
-                      </span>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          aria-label={`Editar ${f.nome}`}
-                          onClick={() => abrirEdicao(f)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          aria-label={`Excluir ${f.nome}`}
-                          className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
-                          onClick={() => setExcluindo(f)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        aria-label={`Editar ${f.nome}`}
+                        onClick={() => abrirEdicao(f)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        aria-label={`Excluir ${f.nome}`}
+                        className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                        onClick={() => setExcluindo(f)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -407,6 +335,7 @@ export default function UsuariosPage() {
               label="E-mail"
               placeholder="funcionario@exemplo.com"
               value={form.email}
+              disabled={!!editandoId}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
             <Input
@@ -448,80 +377,22 @@ export default function UsuariosPage() {
               </p>
             </div>
           )}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Select
-              id="papel"
-              label="Papel"
-              value={form.papel}
-              onChange={(e) => {
-                const papel = e.target.value as PapelOrganizacao;
-                setForm({
-                  ...form,
-                  papel,
-                  permissoes: PERMISSOES_POR_PAPEL[papel],
-                });
-              }}
-            >
-              {(Object.keys(PAPEL_ORGANIZACAO_LABEL) as PapelOrganizacao[]).map((p) => (
-                <option key={p} value={p}>
-                  {PAPEL_ORGANIZACAO_LABEL[p]}
-                </option>
-              ))}
-            </Select>
-            <Select
-              id="organizacao"
-              label="Organização"
-              value={form.organizacaoId}
-              onChange={(e) => setForm({ ...form, organizacaoId: e.target.value })}
-            >
-              {ORGANIZACOES_DEMO.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.nome}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-              Funções liberadas na área de Organização
-            </p>
-            <div className="grid grid-cols-1 gap-1.5 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-              {MODULOS_ORGANIZACAO.map(({ chave, label }) => {
-                const marcada = form.permissoes.includes(chave);
-                return (
-                  <label
-                    key={chave}
-                    className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors ${
-                      marcada
-                        ? "bg-brand-green/10 font-medium text-slate-900 dark:text-white"
-                        : "text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={marcada}
-                      onChange={() => togglePermissao(chave)}
-                      className="h-4 w-4 rounded border-slate-300 text-brand-green focus:ring-brand-green/30"
-                    />
-                    {label}
-                  </label>
-                );
-              })}
-            </div>
-            <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
-              Ajuste caso a caso para liberar ou bloquear cada função para este funcionário.
-            </p>
-          </div>
-
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-            <input
-              type="checkbox"
-              checked={form.ativo}
-              onChange={(e) => setForm({ ...form, ativo: e.target.checked })}
-              className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue/30"
-            />
-            Funcionário ativo (pode acessar a área de organização)
-          </label>
+          <Select
+            id="papel"
+            label="Papel"
+            value={form.papel}
+            onChange={(e) => setForm({ ...form, papel: e.target.value as PapelOrganizacao })}
+          >
+            {(Object.keys(PAPEL_ORGANIZACAO_LABEL) as PapelOrganizacao[]).map((p) => (
+              <option key={p} value={p}>
+                {PAPEL_ORGANIZACAO_LABEL[p]}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            O papel define as funções liberadas na área de Organização (ex.: organizador acessa
+            eventos, provas e inscritos; cronometragem acessa a cronometragem e resultados).
+          </p>
 
           {erro && <p className="text-sm text-red-500">{erro}</p>}
 
@@ -591,15 +462,12 @@ export default function UsuariosPage() {
         title="Excluir funcionário"
         description={
           excluindo
-            ? `Tem certeza que deseja excluir ${excluindo.nome}? Ele não conseguirá mais acessar a área de organização.`
+            ? `Tem certeza que deseja remover ${excluindo.nome}? Ele perderá o acesso à área de organização imediatamente.`
             : ""
         }
         confirmLabel="Excluir"
         onCancel={() => setExcluindo(null)}
-        onConfirm={() => {
-          if (excluindo) excluir(excluindo.id);
-          setExcluindo(null);
-        }}
+        onConfirm={excluir}
       />
     </div>
   );
