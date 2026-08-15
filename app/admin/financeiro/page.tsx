@@ -5,7 +5,7 @@ import { FileSpreadsheet, FileText, Pencil, Paperclip, CheckCircle2 } from "luci
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import {
   usePagamentos,
   pagamentoEfetivo,
@@ -23,6 +23,7 @@ import {
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 const STATUS_STYLE: Record<StatusPagamento, string> = {
   pago: "bg-brand-green/10 text-brand-green",
@@ -43,8 +44,8 @@ export default function FinanceiroPage() {
   const { eventos } = useEventos();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
-  const { inscricoes, atualizar: atualizarInscricao } = useInscricoes();
-  const { obterPorInscricao, salvar } = usePagamentos();
+  const { inscricoes, atualizar: atualizarInscricao, erro: erroInscricoes } = useInscricoes();
+  const { obterPorInscricao, salvar, erro: erroPagamentos } = usePagamentos();
 
   const [filtroEvento, setFiltroEvento] = useState("todos");
   const [filtroCategoria, setFiltroCategoria] = useState("todos");
@@ -258,6 +259,8 @@ export default function FinanceiroPage() {
         </div>
       </header>
 
+      <AlertaPersistencia erro={erroInscricoes ?? erroPagamentos} />
+
       <div className="mb-8">
         <CardsResumo {...totais} />
       </div>
@@ -342,7 +345,7 @@ export default function FinanceiroPage() {
                     {linha.inscricao.numeroPeito || "—"}
                   </td>
                   <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
-                    {linha.inscricao.atletaNome}
+                    {nomeDaInscricao(linha.inscricao)}
                   </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                     {linha.evento?.nome ?? "—"}
@@ -369,7 +372,7 @@ export default function FinanceiroPage() {
                     {linha.pagamento.comprovanteUrl ? (
                       <Button
                         variant="ghost"
-                        aria-label={`Ver comprovante de ${linha.inscricao.atletaNome}`}
+                        aria-label={`Ver comprovante de ${nomeDaInscricao(linha.inscricao)}`}
                         onClick={() => setLinhaComprovante(linha)}
                       >
                         <Paperclip className="h-4 w-4 text-brand-blue" />
@@ -388,7 +391,7 @@ export default function FinanceiroPage() {
                         <Button
                           variant="ghost"
                           className="text-brand-green"
-                          aria-label={`Confirmar pagamento de ${linha.inscricao.atletaNome}`}
+                          aria-label={`Confirmar pagamento de ${nomeDaInscricao(linha.inscricao)}`}
                           onClick={() => handleConfirmarComprovante(linha)}
                         >
                           <CheckCircle2 className="h-4 w-4" />
@@ -397,7 +400,7 @@ export default function FinanceiroPage() {
                       )}
                       <Button
                         variant="ghost"
-                        aria-label={`Editar pagamento de ${linha.inscricao.atletaNome}`}
+                        aria-label={`Editar pagamento de ${nomeDaInscricao(linha.inscricao)}`}
                         onClick={() => abrirEdicao(linha)}
                       >
                         <Pencil className="h-4 w-4" />
@@ -419,7 +422,7 @@ export default function FinanceiroPage() {
 
       <Modal
         open={!!linhaComprovante}
-        title={linhaComprovante ? `Comprovante — ${linhaComprovante.inscricao.atletaNome}` : ""}
+        title={linhaComprovante ? `Comprovante — ${nomeDaInscricao(linhaComprovante.inscricao)}` : ""}
         onClose={() => setLinhaComprovante(null)}
       >
         {linhaComprovante && (

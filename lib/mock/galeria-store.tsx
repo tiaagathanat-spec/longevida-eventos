@@ -73,6 +73,8 @@ export const CATEGORIAS_ORDENADAS: CategoriaImagem[] = [
 
 type GaleriaContextValue = {
   imagens: ImagemGaleria[];
+  pronto: boolean;
+  erro: string | null;
   listarPorEvento: (eventoId: string) => ImagemGaleria[];
   listarPublicasPorEvento: (eventoId: string) => ImagemGaleria[];
   obterCapa: (eventoId: string) => ImagemGaleria | undefined;
@@ -91,7 +93,12 @@ function gerarId() {
 }
 
 export function GaleriaProvider({ children }: { children: ReactNode }) {
-  const { dados: imagens, setDados: setImagens } = usePersistencia<ImagemGaleria>(
+  const {
+    dados: imagens,
+    setDados: setImagens,
+    pronto,
+    erro,
+  } = usePersistencia<ImagemGaleria>(
     "app_galeria",
     [],
     { ordem: "id" }
@@ -100,6 +107,8 @@ export function GaleriaProvider({ children }: { children: ReactNode }) {
   const value = useMemo<GaleriaContextValue>(
     () => ({
       imagens,
+      pronto,
+      erro,
       listarPorEvento: (eventoId) => imagens.filter((i) => i.eventoId === eventoId),
       listarPublicasPorEvento: (eventoId) =>
         imagens.filter((i) => i.eventoId === eventoId && i.visibilidade === "publica"),
@@ -136,7 +145,7 @@ export function GaleriaProvider({ children }: { children: ReactNode }) {
         setImagens((atual) => atual.filter((i) => i.id !== id));
       },
     }),
-    [imagens]
+    [imagens, pronto, erro]
   );
 
   return <GaleriaContext.Provider value={value}>{children}</GaleriaContext.Provider>;

@@ -8,11 +8,12 @@ import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { usePublicacoes } from "@/lib/mock/publicacoes-store";
 import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
 import { useSessao } from "@/lib/mock/sessao";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 const MEDALHA: Record<number, string> = {
   1: "text-amber-500",
@@ -27,8 +28,8 @@ export default function MeusResultadosPage() {
   const { categorias } = useCategorias();
   const { provas } = useProvas();
   const { atletas } = useAtletas();
-  const { inscricoes } = useInscricoes();
-  const { obterPorInscricao } = useResultados();
+  const { inscricoes, erro: erroInscricoes } = useInscricoes();
+  const { obterPorInscricao, erro: erroResultados } = useResultados();
   const { estaPublicado } = usePublicacoes();
 
   const meusNomesDeAtletas = useMemo(
@@ -114,6 +115,8 @@ export default function MeusResultadosPage() {
         </p>
       </header>
 
+      <AlertaPersistencia erro={erroInscricoes ?? erroResultados} />
+
       {meusResultados.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
           <Clock3 className="mx-auto h-6 w-6 text-slate-300" />
@@ -147,7 +150,7 @@ export default function MeusResultadosPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-white">
-                    {inscricao.atletaNome}
+                    {nomeDaInscricao(inscricao)}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {evento?.nome} · {nomeModalidade(prova?.modalidadeId)} ·{" "}

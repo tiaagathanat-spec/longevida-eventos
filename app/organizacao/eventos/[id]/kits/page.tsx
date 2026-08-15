@@ -11,6 +11,7 @@ import { useProvas } from "@/lib/mock/provas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
 import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 export default function OrganizacaoKitsPage() {
   const params = useParams<{ id: string }>();
@@ -20,8 +21,8 @@ export default function OrganizacaoKitsPage() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
-  const { inscricoes } = useInscricoes();
-  const { obterPorInscricao, atualizarControles } = useDorsais();
+  const { inscricoes, erro: erroInscricoes } = useInscricoes();
+  const { obterPorInscricao, atualizarControles, erro: erroDorsais } = useDorsais();
   const { nome: nomeOperador } = useUsuarioOrganizacao();
 
   const evento = obterEvento(eventoId);
@@ -72,8 +73,10 @@ export default function OrganizacaoKitsPage() {
 
       <header className="mb-8">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Entrega de kits</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{evento.nome}</p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{evento.nome}        </p>
       </header>
+
+      <AlertaPersistencia erro={erroInscricoes ?? erroDorsais} />
 
       {/* Contadores de produção/entrega */}
       <div className="mb-8 grid grid-cols-3 gap-4">

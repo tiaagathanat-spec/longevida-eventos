@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 type FormState = {
   nome: string;
@@ -34,7 +35,7 @@ function resumo(modalidade: Modalidade) {
 }
 
 export default function ModalidadesPage() {
-  const { modalidades, criar, atualizar, excluir } = useModalidades();
+  const { modalidades, criar, atualizar, excluir, erro: erroModalidades } = useModalidades();
 
   const [modalAberto, setModalAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -115,6 +116,8 @@ export default function ModalidadesPage() {
           Nova modalidade
         </Button>
       </header>
+
+      <AlertaPersistencia erro={erroModalidades} />
 
       {modalidades.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">

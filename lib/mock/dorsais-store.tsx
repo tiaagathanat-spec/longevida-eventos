@@ -56,6 +56,8 @@ export function obterUltimaAuditoria(
 
 type DorsaisContextValue = {
   dorsais: Dorsal[];
+  pronto: boolean;
+  erro: string | null;
   obterPorInscricao: (inscricaoId: string) => Dorsal | undefined;
   registrar: (inscricaoId: string, numero: number) => Dorsal;
   atualizarControles: (
@@ -72,7 +74,12 @@ function gerarId() {
 }
 
 export function DorsaisProvider({ children }: { children: ReactNode }) {
-  const { dados: dorsais, setDados: setDorsais } = usePersistencia<Dorsal>(
+  const {
+    dados: dorsais,
+    setDados: setDorsais,
+    pronto,
+    erro,
+  } = usePersistencia<Dorsal>(
     "app_dorsais",
     [],
     { ordem: "id" }
@@ -81,6 +88,8 @@ export function DorsaisProvider({ children }: { children: ReactNode }) {
   const value = useMemo<DorsaisContextValue>(
     () => ({
       dorsais,
+      pronto,
+      erro,
       obterPorInscricao: (inscricaoId) =>
         dorsais.find((d) => d.inscricaoId === inscricaoId),
       registrar: (inscricaoId, numero) => {
@@ -120,7 +129,7 @@ export function DorsaisProvider({ children }: { children: ReactNode }) {
         );
       },
     }),
-    [dorsais]
+    [dorsais, pronto, erro]
   );
 
   return <DorsaisContext.Provider value={value}>{children}</DorsaisContext.Provider>;

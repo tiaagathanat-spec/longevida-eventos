@@ -47,6 +47,8 @@ export const STATUS_PAGAMENTO_LABEL: Record<StatusPagamento, string> = {
 
 type PagamentosContextValue = {
   registros: Pagamento[];
+  pronto: boolean;
+  erro: string | null;
   obterPorInscricao: (inscricaoId: string) => Pagamento | undefined;
   salvar: (inscricaoId: string, dados: Omit<Pagamento, "inscricaoId">) => void;
 };
@@ -54,7 +56,12 @@ type PagamentosContextValue = {
 const PagamentosContext = createContext<PagamentosContextValue | null>(null);
 
 export function PagamentosProvider({ children }: { children: ReactNode }) {
-  const { dados: registros, setDados: setRegistros } = usePersistencia<Pagamento>(
+  const {
+    dados: registros,
+    setDados: setRegistros,
+    pronto,
+    erro,
+  } = usePersistencia<Pagamento>(
     "app_pagamentos",
     [],
     { idCampo: "inscricaoId", idColuna: "inscricao_id" }
@@ -63,6 +70,8 @@ export function PagamentosProvider({ children }: { children: ReactNode }) {
   const value = useMemo<PagamentosContextValue>(
     () => ({
       registros,
+      pronto,
+      erro,
       obterPorInscricao: (inscricaoId) =>
         registros.find((p) => p.inscricaoId === inscricaoId),
       salvar: (inscricaoId, dados) => {
@@ -77,7 +86,7 @@ export function PagamentosProvider({ children }: { children: ReactNode }) {
         });
       },
     }),
-    [registros]
+    [registros, pronto, erro]
   );
 
   return (

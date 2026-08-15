@@ -35,6 +35,8 @@ export type InscricaoQrCode = {
 
 type QrCodesContextValue = {
   qrCodes: InscricaoQrCode[];
+  pronto: boolean;
+  erro: string | null;
   obterPorInscricao: (inscricaoId: string) => InscricaoQrCode | undefined;
   localizarPorIdentificador: (identificador: string) => InscricaoQrCode | undefined;
   registrarLeitura: (
@@ -57,7 +59,12 @@ function gerarIdentificador() {
 }
 
 export function QrCodesProvider({ children }: { children: ReactNode }) {
-  const { dados: qrCodes, setDados: setQrCodes } = usePersistencia<InscricaoQrCode>(
+  const {
+    dados: qrCodes,
+    setDados: setQrCodes,
+    pronto,
+    erro,
+  } = usePersistencia<InscricaoQrCode>(
     "app_qrcodes",
     [],
     { ordem: "id" }
@@ -66,6 +73,8 @@ export function QrCodesProvider({ children }: { children: ReactNode }) {
   const value = useMemo<QrCodesContextValue>(
     () => ({
       qrCodes,
+      pronto,
+      erro,
       obterPorInscricao: (inscricaoId) => {
         const existente = qrCodes.find((q) => q.inscricaoId === inscricaoId);
         if (existente) return existente;
@@ -110,7 +119,7 @@ export function QrCodesProvider({ children }: { children: ReactNode }) {
         );
       },
     }),
-    [qrCodes]
+    [qrCodes, pronto, erro]
   );
 
   return <QrCodesContext.Provider value={value}>{children}</QrCodesContext.Provider>;

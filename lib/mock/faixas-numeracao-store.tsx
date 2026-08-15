@@ -44,6 +44,8 @@ export {
 
 type FaixasNumeracaoContextValue = {
   faixas: FaixaNumeracao[];
+  pronto: boolean;
+  erro: string | null;
   listarPorEvento: (eventoId: string) => FaixaNumeracao[];
   obterCriterio: (eventoId: string) => CriterioNumeracao;
   definirCriterio: (eventoId: string, criterio: CriterioNumeracao) => void;
@@ -63,7 +65,12 @@ function gerarId() {
 }
 
 export function FaixasNumeracaoProvider({ children }: { children: ReactNode }) {
-  const { dados: faixas, setDados: setFaixas } = usePersistencia<FaixaNumeracao>(
+  const {
+    dados: faixas,
+    setDados: setFaixas,
+    pronto,
+    erro,
+  } = usePersistencia<FaixaNumeracao>(
     "app_faixas_numeracao",
     [],
     { ordem: "id" }
@@ -73,6 +80,8 @@ export function FaixasNumeracaoProvider({ children }: { children: ReactNode }) {
   const value = useMemo<FaixasNumeracaoContextValue>(
     () => ({
       faixas,
+      pronto,
+      erro,
       listarPorEvento: (eventoId) => faixas.filter((f) => f.eventoId === eventoId),
       obterCriterio: (eventoId) => criterios[eventoId] ?? "categoria",
       definirCriterio: (eventoId, criterio) =>
@@ -104,7 +113,7 @@ export function FaixasNumeracaoProvider({ children }: { children: ReactNode }) {
         });
       },
     }),
-    [faixas, criterios]
+    [faixas, criterios, pronto, erro]
   );
 
   return (

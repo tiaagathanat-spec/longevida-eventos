@@ -32,6 +32,8 @@ export type Regulamento = {
 
 type RegulamentosContextValue = {
   documentos: Regulamento[];
+  pronto: boolean;
+  erro: string | null;
   listarPorEvento: (eventoId: string) => Regulamento[];
   adicionar: (dados: Omit<Regulamento, "id" | "enviadoEm">) => Regulamento;
   excluir: (id: string) => void;
@@ -44,7 +46,12 @@ function gerarId() {
 }
 
 export function RegulamentosProvider({ children }: { children: ReactNode }) {
-  const { dados: documentos, setDados: setDocumentos } = usePersistencia<Regulamento>(
+  const {
+    dados: documentos,
+    setDados: setDocumentos,
+    pronto,
+    erro,
+  } = usePersistencia<Regulamento>(
     "app_regulamentos",
     [],
     { ordem: "id" }
@@ -53,6 +60,8 @@ export function RegulamentosProvider({ children }: { children: ReactNode }) {
   const value = useMemo<RegulamentosContextValue>(
     () => ({
       documentos,
+      pronto,
+      erro,
       listarPorEvento: (eventoId) =>
         documentos.filter((d) => d.eventoId === eventoId),
       adicionar: (dados) => {
@@ -68,7 +77,7 @@ export function RegulamentosProvider({ children }: { children: ReactNode }) {
         setDocumentos((atual) => atual.filter((d) => d.id !== id));
       },
     }),
-    [documentos]
+    [documentos, pronto, erro]
   );
 
   return (

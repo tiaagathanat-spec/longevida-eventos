@@ -8,6 +8,7 @@ import { useEventos, inscricoesEstaoAbertas } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
+import { useTiposProva, eTipoDupla } from "@/lib/mock/tipos-prova-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useSessao } from "@/lib/mock/sessao";
@@ -16,6 +17,7 @@ import { CHAVE_PIX_LONGEVIDA, QR_PIX_LONGEVIDA } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 export default function InscricaoPage() {
   const params = useParams<{ id: string }>();
@@ -27,8 +29,10 @@ export default function InscricaoPage() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
-  const { atletas, criar: criarAtleta, atualizar: atualizarAtleta } = useAtletas();
-  const { inscricoes, criar } = useInscricoes();
+  const { tiposProva } = useTiposProva();
+  const { atletas, criar: criarAtleta, atualizar: atualizarAtleta, erro: erroAtletas } =
+    useAtletas();
+  const { inscricoes, criar, erro: erroInscricoes } = useInscricoes();
 
   const evento = obterEvento(eventoId);
   const inscritosConfirmados = inscricoes.filter(
@@ -59,6 +63,8 @@ export default function InscricaoPage() {
 
   const [atletaId, setAtletaId] = useState(meusAtletas[0]?.id ?? "");
   const [provaId, setProvaId] = useState("");
+  const [parceiroNome, setParceiroNome] = useState("");
+  const [erroParceiro, setErroParceiro] = useState(false);
   const [copiadoPix, setCopiadoPix] = useState(false);
   const [termos, setTermos] = useState({
     imagem: false,
@@ -154,6 +160,14 @@ export default function InscricaoPage() {
   }
 
   const provaSelecionada = provasDisponiveis.find((p) => p.id === provaId);
+  const tipoProvaDaProva = tiposProva.find((t) => t.id === provaSelecionada?.tipoProvaId);
+  const eDupla = eTipoDupla(tipoProvaDaProva);
+
+  // Prova nova selecionada: limpa o nome do 2º participante da dupla.
+  useEffect(() => {
+    setParceiroNome("");
+    setErroParceiro(false);
+  }, [provaId]);
 
   function formatarMoeda(valor: number) {
     return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -213,6 +227,13 @@ export default function InscricaoPage() {
     }
     setErroTermos(false);
 
+    // Prova em dupla: exige o nome do 2º participante.
+    if (eDupla && !parceiroNome.trim()) {
+      setErroParceiro(true);
+      return;
+    }
+    setErroParceiro(false);
+
     // Menor de idade: dados completos do responsável legal + aceite
     // do termo de autorização do responsável.
     if (atletaMenor) {
@@ -247,6 +268,7 @@ export default function InscricaoPage() {
         provaId,
         atletaNome: atleta.nome,
         status: "pendente",
+        atletaNome2: eDupla ? parceiroNome.trim() : undefined,
       });
     }
 
@@ -285,6 +307,8 @@ export default function InscricaoPage() {
 
       <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Inscrição</h1>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{evento.nome}</p>
+
+      <AlertaPersistencia erro={erroAtletas ?? erroInscricoes} />
 
       <div className="mt-8 flex flex-col gap-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
@@ -439,6 +463,35 @@ export default function InscricaoPage() {
                   </option>
                 ))}
               </Select>
+
+              {eDupla && (
+                <div className="rounded-2xl border border-brand-blue/30 bg-brand-blue/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-xl bg-brand-blue/10 p-2">
+                      <Users className="h-4 w-4 text-brand-blue" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                        Prova em dupla
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        Informe o nome do segundo participante. O valor da inscrição cobre a
+                        dupla completa.
+                      </p>
+                      <div className="mt-3">
+                        <Input
+                          id="parceiroNome"
+                          label="2º participante (dupla)"
+                          placeholder="Nome completo do parceiro(a)"
+                          value={parceiroNome}
+                          onChange={(e) => setParceiroNome(e.target.value)}
+                          error={erroParceiro ? "Informe o nome do 2º participante." : undefined}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {provaSelecionada && (
                 <div className="rounded-xl bg-brand-blue/5 p-4 text-sm text-slate-600 dark:text-slate-300">

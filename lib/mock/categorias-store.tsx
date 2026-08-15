@@ -17,6 +17,8 @@ export type Categoria = {
 
 type CategoriasContextValue = {
   categorias: Categoria[];
+  pronto: boolean;
+  erro: string | null;
   carregando: boolean;
   obterPorId: (id: string) => Categoria | undefined;
   criar: (dados: Omit<Categoria, "id">) => Promise<Categoria>;
@@ -71,7 +73,12 @@ function gerarId() {
 }
 
 export function CategoriasProvider({ children }: { children: ReactNode }) {
-  const { dados: categorias, setDados: setCategorias } = usePersistencia<Categoria>(
+  const {
+    dados: categorias,
+    setDados: setCategorias,
+    pronto,
+    erro,
+  } = usePersistencia<Categoria>(
     "app_categorias",
     CATEGORIAS_INICIAIS,
     { ordem: "id" }
@@ -80,6 +87,8 @@ export function CategoriasProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CategoriasContextValue>(
     () => ({
       categorias,
+      pronto,
+      erro,
       carregando: false,
       obterPorId: (id) => categorias.find((c) => c.id === id),
       criar: async (dados) => {
@@ -98,7 +107,7 @@ export function CategoriasProvider({ children }: { children: ReactNode }) {
         setCategorias((atual) => atual.filter((c) => c.id !== id));
       },
     }),
-    [categorias]
+    [categorias, pronto, erro]
   );
 
   return (

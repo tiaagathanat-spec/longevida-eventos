@@ -8,7 +8,7 @@ import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { usePublicacoes } from "@/lib/mock/publicacoes-store";
 import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
@@ -38,6 +38,7 @@ function formatarData(iso: string) {
 type EtapaJornada = {
   inscricaoId: string;
   atletaNome: string;
+  atletaNome2?: string;
   eventoId: string;
   eventoNome: string;
   eventoData: string;
@@ -132,6 +133,7 @@ export default function MinhaJornadaPage() {
       .map(({ inscricao, prova, evento, tempo }) => ({
         inscricaoId: inscricao.id,
         atletaNome: inscricao.atletaNome,
+        atletaNome2: inscricao.atletaNome2,
         eventoId: evento!.id,
         eventoNome: evento!.nome,
         eventoData: evento!.data,
@@ -167,6 +169,7 @@ export default function MinhaJornadaPage() {
           return {
             inscricaoId: inscricao.id,
             atletaNome: inscricao.atletaNome,
+            atletaNome2: inscricao.atletaNome2,
             eventoId: inscricao.eventoId,
             eventoNome: evento?.nome ?? "—",
             eventoData: evento?.data ?? "",
@@ -284,7 +287,7 @@ export default function MinhaJornadaPage() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-slate-900 dark:text-white">
-                          {etapa.atletaNome}
+                          {nomeDaInscricao(etapa)}
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           {etapa.eventoNome} · {etapa.modalidade} · {etapa.categoria}
@@ -334,7 +337,7 @@ export default function MinhaJornadaPage() {
               >
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-white">
-                    {desafio.atletaNome}
+                    {nomeDaInscricao(desafio)}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {desafio.eventoNome} · {desafio.modalidade} · {desafio.categoria}

@@ -7,7 +7,7 @@ import { ArrowLeft, Check, Hash, Image as ImageIcon, Printer, Settings2 } from "
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import {
   useFaixasNumeracao,
@@ -20,6 +20,7 @@ import {
 import { useDorsais } from "@/lib/mock/dorsais-store";
 import { useGaleria } from "@/lib/mock/galeria-store";
 import { Button } from "@/components/ui/button";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 import { EditarFaixaModal, FaixaEmEdicao } from "@/components/dorsais/editar-faixa-modal";
 
 export default function DorsaisDoEventoPage() {
@@ -29,7 +30,7 @@ export default function DorsaisDoEventoPage() {
   const { obterPorId: obterEvento, definirLogo } = useEventos();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
-  const { inscricoes } = useInscricoes();
+  const { inscricoes, erro: erroInscricoes } = useInscricoes();
   const { atletas } = useAtletas();
   const {
     obterCriterio,
@@ -37,7 +38,7 @@ export default function DorsaisDoEventoPage() {
     obter: obterFaixa,
     salvar: salvarFaixa,
   } = useFaixasNumeracao();
-  const { obterPorInscricao, atualizarControles } = useDorsais();
+  const { obterPorInscricao, atualizarControles, erro: erroDorsais } = useDorsais();
   const { listarPorEvento: listarImagensDoEvento } = useGaleria();
 
   const evento = obterEvento(eventoId);
@@ -151,6 +152,8 @@ export default function DorsaisDoEventoPage() {
           </Button>
         </Link>
       </header>
+
+      <AlertaPersistencia erro={erroInscricoes ?? erroDorsais} />
 
       {/* Configuração das faixas de numeração */}
       <section className="mb-10">
@@ -344,7 +347,7 @@ export default function DorsaisDoEventoPage() {
                       {dorsal ? String(dorsal.numero).padStart(3, "0") : "—"}
                     </td>
                     <td className="px-4 py-3 text-slate-700 dark:text-slate-200">
-                      {inscricao.atletaNome}
+                      {nomeDaInscricao(inscricao)}
                     </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       {grupoNome}

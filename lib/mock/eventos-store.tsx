@@ -192,7 +192,12 @@ function gerarId() {
 }
 
 export function EventosProvider({ children }: { children: ReactNode }) {
-  const { dados: eventos, setDados: setEventos } = usePersistencia<Evento>(
+  const {
+    dados: eventos,
+    setDados: setEventos,
+    pronto,
+    erro,
+  } = usePersistencia<Evento>(
     "app_eventos",
     EVENTOS_INICIAIS,
     { ordem: "id" }
@@ -201,8 +206,8 @@ export function EventosProvider({ children }: { children: ReactNode }) {
   const value = useMemo<EventosContextValue>(
     () => ({
       eventos,
-      carregando: false,
-      erro: null,
+      carregando: !pronto,
+      erro,
       obterPorId: (id) => eventos.find((e) => e.id === id),
       criar: async (dados) => {
         // Organização REAL do usuário autenticado (vínculo
@@ -244,7 +249,7 @@ export function EventosProvider({ children }: { children: ReactNode }) {
         setEventos((atual) => atual.filter((e) => e.id !== id));
       },
     }),
-    [eventos]
+    [eventos, pronto, erro]
   );
 
   return <EventosContext.Provider value={value}>{children}</EventosContext.Provider>;

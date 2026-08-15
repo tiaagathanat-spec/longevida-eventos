@@ -18,7 +18,7 @@ import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
 import { useQrCodes } from "@/lib/mock/qrcodes-store";
@@ -66,7 +66,7 @@ export function CronometragemClient() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
-  const { inscricoes } = useInscricoes();
+  const { inscricoes, erro: erroInscricoes } = useInscricoes();
   const { resultados, obterPorInscricao, lancar, remover } = useResultados();
   const { obterPorInscricao: obterDorsal } = useDorsais();
   const { qrCodes } = useQrCodes();
@@ -229,6 +229,7 @@ export function CronometragemClient() {
     return atletasDaProva.filter((ins) => {
       if (viaQr && viaQr.inscricaoId === ins.id) return true;
       if (ins.atletaNome.toLowerCase().includes(q)) return true;
+      if (ins.atletaNome2 && ins.atletaNome2.toLowerCase().includes(q)) return true;
       if (ins.numeroPeito && ins.numeroPeito.trim().toLowerCase() === q) return true;
       const dorsal = obterDorsal(ins.id);
       if (dorsal && String(dorsal.numero).toLowerCase() === q) return true;
@@ -243,7 +244,7 @@ export function CronometragemClient() {
     const inscricao = inscricoes.find((i) => i.id === inscricaoId);
     if (!estaLiberado(inscricaoId)) {
       setErro(
-        `"${inscricao?.atletaNome ?? "Atleta"}" ainda não está liberado (check-in e kit pendentes).`
+        `"${inscricao ? nomeDaInscricao(inscricao) : "Atleta"}" ainda não está liberado (check-in e kit pendentes).`
       );
       return;
     }
@@ -251,7 +252,7 @@ export function CronometragemClient() {
     lancar(inscricaoId, tempo, "", cronometrista.trim() || undefined);
     setSalvoFlash({
       inscricaoId,
-      nome: inscricao?.atletaNome ?? "Atleta",
+      nome: inscricao ? nomeDaInscricao(inscricao) : "Atleta",
       tempo,
     });
     setCapturando(false);
@@ -366,6 +367,19 @@ export function CronometragemClient() {
               Sincronizar agora
             </button>
           )}
+        </div>
+      )}
+
+      {/* Falha de leitura/gravação da persistência (nunca ocultada) */}
+      {erroInscricoes && (
+        <div className="mb-6 flex items-start gap-2.5 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 dark:border-red-500/40 dark:bg-red-950/30">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-300" />
+          <div>
+            <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+              Inscrições não carregaram corretamente
+            </p>
+            <p className="text-xs text-red-600/90 dark:text-red-300/80">{erroInscricoes}</p>
+          </div>
         </div>
       )}
 
@@ -502,7 +516,7 @@ export function CronometragemClient() {
                     {inscricao.numeroPeito || "—"}
                   </span>
                   <p className="min-w-0 flex-1 truncate text-base font-semibold text-slate-900 dark:text-white">
-                    {inscricao.atletaNome}
+                    {nomeDaInscricao(inscricao)}
                   </p>
                   <span
                     className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
@@ -556,7 +570,7 @@ export function CronometragemClient() {
                     type="button"
                     onClick={() => handleSalvar(inscricao.id)}
                     disabled={!liberado}
-                    aria-label={`Salvar tempo de ${inscricao.atletaNome}`}
+                    aria-label={`Salvar tempo de ${nomeDaInscricao(inscricao)}`}
                     className={`flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                       salvo ? "bg-brand-green" : "bg-brand-blue hover:bg-brand-blue-dark"
                     }`}
@@ -620,7 +634,7 @@ type CronometroSectionProps = {
       capturadoEm?: string;
       tempoAnterior?: string;
     };
-    ins: { id: string; atletaNome: string; numeroPeito?: string };
+    ins: { id: string; atletaNome: string; atletaNome2?: string; numeroPeito?: string };
   }[];
   remover: (inscricaoId: string) => void;
   formatarTempo: (ms: number) => string;
@@ -835,7 +849,7 @@ function CronometroSection(props: CronometroSectionProps) {
                       {inscricao.numeroPeito || "—"}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-base font-semibold text-slate-900 dark:text-white">
-                      {inscricao.atletaNome}
+                      {nomeDaInscricao(inscricao)}
                     </span>
                     {liberado ? (
                       <span className="shrink-0 rounded-full bg-brand-green/10 px-2.5 py-1 text-[11px] font-bold text-brand-green">
@@ -878,7 +892,7 @@ function CronometroSection(props: CronometroSectionProps) {
                   {ins.numeroPeito || "—"}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
-                  {ins.atletaNome}
+                  {nomeDaInscricao(ins)}
                 </span>
                 <span className="shrink-0 text-sm font-bold tabular-nums text-brand-green">
                   {r.tempo}
@@ -889,7 +903,7 @@ function CronometroSection(props: CronometroSectionProps) {
                 <button
                   type="button"
                   onClick={() => remover(r.inscricaoId)}
-                  aria-label={`Remover tempo de ${ins.atletaNome}`}
+                  aria-label={`Remover tempo de ${nomeDaInscricao(ins)}`}
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 transition-colors hover:text-red-600 dark:bg-slate-800"
                 >
                   <X className="h-4 w-4" />

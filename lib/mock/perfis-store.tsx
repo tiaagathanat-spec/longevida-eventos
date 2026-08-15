@@ -30,6 +30,8 @@ export type Perfil = {
 
 type PerfisContextValue = {
   perfis: Perfil[];
+  pronto: boolean;
+  erro: string | null;
   obterPorEmail: (email: string) => Perfil | undefined;
   criar: (dados: Omit<Perfil, "id">) => Perfil;
   atualizar: (email: string, dados: Partial<Omit<Perfil, "id">>) => void;
@@ -72,7 +74,12 @@ const PERFIS_INICIAIS: Perfil[] = [
 ];
 
 export function PerfisProvider({ children }: { children: ReactNode }) {
-  const { dados: perfis, setDados: setPerfis } = usePersistencia<Perfil>(
+  const {
+    dados: perfis,
+    setDados: setPerfis,
+    pronto,
+    erro,
+  } = usePersistencia<Perfil>(
     "app_perfis",
     PERFIS_INICIAIS,
     { ordem: "id" }
@@ -81,6 +88,8 @@ export function PerfisProvider({ children }: { children: ReactNode }) {
   const value = useMemo<PerfisContextValue>(
     () => ({
       perfis,
+      pronto,
+      erro,
       obterPorEmail: (email) =>
         perfis.find((p) => p.email.toLowerCase() === email.trim().toLowerCase()),
       criar: (dados) => {
@@ -97,7 +106,7 @@ export function PerfisProvider({ children }: { children: ReactNode }) {
         );
       },
     }),
-    [perfis]
+    [perfis, pronto, erro]
   );
 
   return <PerfisContext.Provider value={value}>{children}</PerfisContext.Provider>;

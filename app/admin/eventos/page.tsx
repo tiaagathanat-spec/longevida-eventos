@@ -14,6 +14,7 @@ import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select } from "@/components/ui/select";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 function formatarData(iso: string) {
   if (!iso) return "—";
@@ -25,7 +26,7 @@ function formatarData(iso: string) {
 }
 
 export default function EventosPage() {
-  const { eventos, excluir } = useEventos();
+  const { eventos, excluir, erro } = useEventos();
   const { inscricoes } = useInscricoes();
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
   const [filtroStatus, setFiltroStatus] = useState("todos");
@@ -68,6 +69,8 @@ export default function EventosPage() {
           </Button>
         </Link>
       </header>
+
+      <AlertaPersistencia erro={erro} />
 
       <div className="mb-6">
         <Select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)} className="w-auto">

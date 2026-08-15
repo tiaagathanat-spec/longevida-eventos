@@ -8,7 +8,7 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas, identificacaoDaProva } from "@/lib/mock/provas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
 import {
@@ -131,7 +131,7 @@ export default function ImprimirDorsaisPage() {
                 <CartaoComQr
                   inscricaoId={inscricao.id}
                   numero={dorsal!.numero}
-                  atletaNome={inscricao.atletaNome}
+                  atletaNome={nomeDaInscricao(inscricao)}
                   categoriaNome={grupoNome}
                   eventoNome={evento.nome}
                   dataEvento={formatarData(evento.data)}

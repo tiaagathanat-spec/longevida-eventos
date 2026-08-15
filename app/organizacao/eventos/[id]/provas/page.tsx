@@ -28,6 +28,7 @@ import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
 import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 import { Button } from "@/components/ui/button";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 export default function OrganizacaoProvasPage() {
   const params = useParams<{ id: string }>();
@@ -36,8 +37,8 @@ export default function OrganizacaoProvasPage() {
   const { obterPorId: obterEvento } = useEventos();
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
-  const { tiposProva } = useTiposProva();
-  const { provas, definirSituacao } = useProvas();
+  const { tiposProva, erro: erroTiposProva } = useTiposProva();
+  const { provas, definirSituacao, erro: erroProvas } = useProvas();
   const { inscricoes } = useInscricoes();
   const { obterPorInscricao: obterDorsal } = useDorsais();
   const { nome: nomeOperador } = useUsuarioOrganizacao();
@@ -111,6 +112,8 @@ export default function OrganizacaoProvasPage() {
           {evento.nome} — situação de realização e operação no dia.
         </p>
       </header>
+
+      <AlertaPersistencia erro={erroProvas ?? erroTiposProva} />
 
       {provasDoEvento.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">

@@ -98,7 +98,14 @@ export default function Page() {
 
           <p className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400">
             Precisando de ajuda?{" "}
-            <span className="font-medium text-brand-blue">Entre em contato com a organização.</span>
+            <a
+              href="https://wa.me/5562981236127"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-brand-blue hover:text-brand-blue-dark hover:underline"
+            >
+              Entre em contato com a organização no WhatsApp.
+            </a>
           </p>
         </div>
       </div>

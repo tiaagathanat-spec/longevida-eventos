@@ -20,6 +20,8 @@ export type Publicacao = {
 
 type PublicacoesContextValue = {
   publicacoes: Publicacao[];
+  pronto: boolean;
+  erro: string | null;
   estaPublicado: (provaId: string) => boolean;
   obterDataPublicacao: (provaId: string) => string | undefined;
   publicar: (provaId: string) => void;
@@ -29,7 +31,12 @@ type PublicacoesContextValue = {
 const PublicacoesContext = createContext<PublicacoesContextValue | null>(null);
 
 export function PublicacoesProvider({ children }: { children: ReactNode }) {
-  const { dados: publicacoes, setDados: setPublicacoes } = usePersistencia<Publicacao>(
+  const {
+    dados: publicacoes,
+    setDados: setPublicacoes,
+    pronto,
+    erro,
+  } = usePersistencia<Publicacao>(
     "app_publicacoes",
     [],
     { idCampo: "provaId", idColuna: "prova_id" }
@@ -38,6 +45,8 @@ export function PublicacoesProvider({ children }: { children: ReactNode }) {
   const value = useMemo<PublicacoesContextValue>(
     () => ({
       publicacoes,
+      pronto,
+      erro,
       estaPublicado: (provaId) => publicacoes.some((p) => p.provaId === provaId),
       obterDataPublicacao: (provaId) =>
         publicacoes.find((p) => p.provaId === provaId)?.publicadoEm,
@@ -51,7 +60,7 @@ export function PublicacoesProvider({ children }: { children: ReactNode }) {
         setPublicacoes((atual) => atual.filter((p) => p.provaId !== provaId));
       },
     }),
-    [publicacoes]
+    [publicacoes, pronto, erro]
   );
 
   return (

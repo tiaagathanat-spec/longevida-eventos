@@ -8,7 +8,7 @@ import { useEventos } from "@/lib/mock/eventos-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { usePerfis } from "@/lib/mock/perfis-store";
 import { useSessao } from "@/lib/mock/sessao";
 import { useQrDaInscricao } from "@/lib/mock/qrcodes-store";
@@ -126,7 +126,7 @@ export default function CredenciaisPage() {
             <CrachaComQr
               key={inscricao.id}
               inscricaoId={inscricao.id}
-              atletaNome={inscricao.atletaNome}
+              atletaNome={nomeDaInscricao(inscricao)}
               categoriaNome={categoria!.nome}
               eventoNome={evento!.nome}
               dataEvento={formatarData(evento!.data)}

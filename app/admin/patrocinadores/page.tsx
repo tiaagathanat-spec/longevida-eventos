@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 const COTA_STYLE: Record<CotaPatrocinio, string> = {
   ouro: "bg-amber-100 text-amber-600",
@@ -40,7 +41,8 @@ const FORM_VAZIO: FormDados = {
 };
 
 export default function PatrocinadoresPage() {
-  const { patrocinadores, criar, atualizar, excluir } = usePatrocinadores();
+  const { patrocinadores, criar, atualizar, excluir, erro: erroPatrocinadores } =
+    usePatrocinadores();
   const { eventos } = useEventos();
 
   const [modalAberto, setModalAberto] = useState(false);
@@ -108,6 +110,8 @@ export default function PatrocinadoresPage() {
           Novo patrocinador
         </Button>
       </header>
+
+      <AlertaPersistencia erro={erroPatrocinadores} />
 
       {patrocinadores.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">

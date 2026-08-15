@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 type FormState = {
   nome: string;
@@ -27,7 +28,7 @@ function faixaEtaria(categoria: Categoria) {
 }
 
 export default function CategoriasPage() {
-  const { categorias, criar, atualizar, excluir } = useCategorias();
+  const { categorias, criar, atualizar, excluir, erro: erroCategorias } = useCategorias();
 
   const [modalAberto, setModalAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -115,6 +116,8 @@ export default function CategoriasPage() {
           Nova categoria
         </Button>
       </header>
+
+      <AlertaPersistencia erro={erroCategorias} />
 
       {categorias.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">

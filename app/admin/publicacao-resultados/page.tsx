@@ -18,6 +18,7 @@ import { usePublicacoes } from "@/lib/mock/publicacoes-store";
 import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 import { TabelaClassificacaoGrupos } from "@/components/classificacao/tabela-classificacao-grupos";
 
 // Módulo Publicação dos Resultados.
@@ -51,9 +52,9 @@ export default function PublicacaoResultadosPage() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
-  const { inscricoes } = useInscricoes();
+  const { inscricoes, erro: erroInscricoes } = useInscricoes();
   const { atletas } = useAtletas();
-  const { obterPorInscricao } = useResultados();
+  const { obterPorInscricao, erro: erroResultados } = useResultados();
   const { estaPublicado, obterDataPublicacao, publicar, despublicar } = usePublicacoes();
 
   const [expandida, setExpandida] = useState<string | null>(null);
@@ -126,6 +127,8 @@ export default function PublicacaoResultadosPage() {
           Publique a classificação de cada prova para liberar a visualização no Portal do Atleta.
         </p>
       </header>
+
+      <AlertaPersistencia erro={erroInscricoes ?? erroResultados} />
 
       {provasOrdenadas.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">

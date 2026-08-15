@@ -13,7 +13,7 @@ import {
   SITUACAO_PROVA_LABEL,
   SITUACAO_PROVA_CLASSE,
 } from "@/lib/mock/provas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { usePublicacoes } from "@/lib/mock/publicacoes-store";
@@ -21,6 +21,7 @@ import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 import { TabelaClassificacaoGrupos } from "@/components/classificacao/tabela-classificacao-grupos";
 
 function formatarDataHora(iso: string) {
@@ -40,9 +41,9 @@ export default function ClassificacaoPage() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
-  const { inscricoes } = useInscricoes();
+  const { inscricoes, erro: erroInscricoes } = useInscricoes();
   const { atletas } = useAtletas();
-  const { obterPorInscricao } = useResultados();
+  const { obterPorInscricao, erro: erroResultados } = useResultados();
   const { estaPublicado, obterDataPublicacao, publicar, despublicar } = usePublicacoes();
 
   const evento = obterEvento(eventoId);
@@ -124,8 +125,10 @@ export default function ClassificacaoPage() {
 
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Classificação</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{evento.nome}</p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{evento.nome}        </p>
       </header>
+
+      <AlertaPersistencia erro={erroInscricoes ?? erroResultados} />
 
       {provasDoEvento.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
@@ -215,7 +218,7 @@ export default function ClassificacaoPage() {
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
                 {aguardando.map((i) => (
-                  <span key={i.id}>{i.atletaNome}</span>
+                  <span key={i.id}>{nomeDaInscricao(i)}</span>
                 ))}
               </div>
             </div>

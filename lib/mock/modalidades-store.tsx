@@ -19,6 +19,8 @@ export type Modalidade = {
 
 type ModalidadesContextValue = {
   modalidades: Modalidade[];
+  pronto: boolean;
+  erro: string | null;
   carregando: boolean;
   obterPorId: (id: string) => Modalidade | undefined;
   criar: (dados: Omit<Modalidade, "id">) => Promise<Modalidade>;
@@ -65,7 +67,12 @@ function gerarId() {
 }
 
 export function ModalidadesProvider({ children }: { children: ReactNode }) {
-  const { dados: modalidades, setDados: setModalidades } = usePersistencia<Modalidade>(
+  const {
+    dados: modalidades,
+    setDados: setModalidades,
+    pronto,
+    erro,
+  } = usePersistencia<Modalidade>(
     "app_modalidades",
     MODALIDADES_INICIAIS,
     { ordem: "id" }
@@ -74,6 +81,8 @@ export function ModalidadesProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ModalidadesContextValue>(
     () => ({
       modalidades,
+      pronto,
+      erro,
       carregando: false,
       obterPorId: (id) => modalidades.find((m) => m.id === id),
       criar: async (dados) => {
@@ -92,7 +101,7 @@ export function ModalidadesProvider({ children }: { children: ReactNode }) {
         setModalidades((atual) => atual.filter((m) => m.id !== id));
       },
     }),
-    [modalidades]
+    [modalidades, pronto, erro]
   );
 
   return (

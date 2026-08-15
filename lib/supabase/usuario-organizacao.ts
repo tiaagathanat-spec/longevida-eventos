@@ -7,6 +7,15 @@
 // organização <-> usuário (`organizacao_usuarios`), consultado no
 // Supabase com base no usuário logado. As permissões de módulos seguem
 // o papel retornado pelo banco (PERMISSOES_POR_PAPEL).
+//
+// Um usuário PODE estar vinculado a mais de uma organização (ex.: o
+// admin tem vínculo 'administrador' na Espaço Longevida e 'cronometragem'
+// numa organização de teste). Nunca usamos `.maybeSingle()` aqui: quando
+// há mais de um vínculo a consulta ERRA e o papel/organização caem para
+// null — o que fazia a persistência "aparentar salvar" e sumir ao
+// recarregar. O vínculo efetivo é escolhido de forma DETERMINÍSTICA pelo
+// papel de maior privilégio (administrador > organizador > financeiro >
+// cronometragem > leitura).
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -30,22 +39,64 @@ export type UsuarioOrganizacao = {
   carregando: boolean;
 };
 
-// Organização real do usuário autenticado (uuid), lida do vínculo
-// organizacao_usuarios. Usada pelos stores (ex.: eventos-store) para
-// gravar organizacao_id em dados que dependem da organização do usuário.
-export async function buscarOrganizacaoAtual(): Promise<string | null> {
+type VinculoOrganizacao = {
+  papel: PapelOrganizacao | null;
+  organizacaoId: string | null;
+};
+
+// Prioridade do vínculo efetivo. Ordenação determinística — nunca
+// dependemos da ordem que o banco devolve (LIMIT sem ORDER BY).
+const PRIORIDADE_PAPEL: Record<string, number> = {
+  administrador: 0,
+  organizador: 1,
+  financeiro: 2,
+  cronometragem: 3,
+  leitura: 4,
+};
+
+function melhorVinculo(vinculos: VinculoOrganizacao[]): VinculoOrganizacao {
+  const validos = vinculos.filter((v) => v.papel && v.organizacaoId);
+  validos.sort(
+    (a, b) =>
+      (PRIORIDADE_PAPEL[a.papel!] ?? 9) - (PRIORIDADE_PAPEL[b.papel!] ?? 9)
+  );
+  return validos[0] ?? { papel: null, organizacaoId: null };
+}
+
+// Todos os vínculos reais do usuário autenticado em organizacao_usuarios.
+// Retorna vazio quando não autenticado, sem vínculos ou em erro — o
+// chamador decide como reagir (não esconde o dado, só lista o que existe).
+export async function listarVinculos(): Promise<VinculoOrganizacao[]> {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data } = await supabase
+  if (!user) return [];
+
+  const { data, error } = await supabase
     .from("organizacao_usuarios")
-    .select("organizacao_id")
-    .eq("usuario_id", user.id)
-    .maybeSingle();
-  if (!data || typeof data.organizacao_id !== "string") return null;
-  return data.organizacao_id;
+    .select("papel, organizacao_id")
+    .eq("usuario_id", user.id);
+
+  if (error || !data) return [];
+
+  return data.map((linha) => ({
+    papel:
+      typeof linha.papel === "string" && linha.papel in PERMISSOES_POR_PAPEL
+        ? (linha.papel as PapelOrganizacao)
+        : null,
+    organizacaoId:
+      typeof linha.organizacao_id === "string" ? linha.organizacao_id : null,
+  }));
+}
+
+// Organização real do usuário autenticado (uuid), lida do vínculo
+// organizacao_usuarios. Usada pelos stores (ex.: eventos-store) para
+// gravar organizacao_id em dados que dependem da organização do usuário.
+// Com múltiplos vínculos, devolve a organização do vínculo de maior
+// privilégio (nunca o primeiro arbitrário do banco).
+export async function buscarOrganizacaoAtual(): Promise<string | null> {
+  return melhorVinculo(await listarVinculos()).organizacaoId;
 }
 
 const TODAS_PERMISSOES = MODULOS_ORGANIZACAO.map((m) => m.chave);
@@ -86,17 +137,13 @@ export function useUsuarioOrganizacao(): UsuarioOrganizacao {
 
       if (user) {
         const email = user.email ?? "";
-        const [rUsuario, rVinculo] = await Promise.all([
+        const [rUsuario, vinculos] = await Promise.all([
           supabase
             .from("usuarios")
             .select("nome, telefone")
             .eq("id", user.id)
             .maybeSingle(),
-          supabase
-            .from("organizacao_usuarios")
-            .select("papel, organizacao_id")
-            .eq("usuario_id", user.id)
-            .maybeSingle(),
+          listarVinculos(),
         ]);
 
         if (rUsuario.data) {
@@ -108,13 +155,12 @@ export function useUsuarioOrganizacao(): UsuarioOrganizacao {
           }
         }
 
-        const papelBruto = rVinculo.data?.papel;
-        if (typeof papelBruto === "string" && papelBruto in PERMISSOES_POR_PAPEL) {
-          papel = papelBruto as PapelOrganizacao;
-        }
-        if (typeof rVinculo.data?.organizacao_id === "string") {
-          organizacaoId = rVinculo.data.organizacao_id;
-        }
+        // Vínculo efetivo determinístico (papel de maior privilégio). Com
+        // múltiplos vínculos o maybeSingle falharia e papel/organização
+        // ficariam null — quebrando a persistência silenciosamente.
+        const vinculo = melhorVinculo(vinculos);
+        papel = vinculo.papel;
+        organizacaoId = vinculo.organizacaoId;
 
         if (!ativo) return;
         setEstado({

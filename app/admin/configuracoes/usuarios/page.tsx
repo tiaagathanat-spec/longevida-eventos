@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import { UserPlus, Pencil, Trash2, KeyRound, Copy, Check, Wand2 } from "lucide-react";
+import { useState, FormEvent, useEffect, useMemo } from "react";
+import { UserPlus, Pencil, Trash2, KeyRound, Copy, Check, Wand2, ShieldCheck } from "lucide-react";
 import {
   useFuncionarios,
   Funcionario,
@@ -55,8 +55,22 @@ function gerarSenha() {
   return Array.from(rnd, (b) => charset[b % charset.length]).join("");
 }
 
-function BotaoCopiar({ texto, label }: { texto: string; label: string }) {
-  const [copiado, setCopiado] = useState(false);
+// Aviso quando a equipe real não pôde ser carregada da API (nunca
+// esconder falha de leitura).
+function AlertaEquipeReal({ erro }: { erro: string | null }) {
+  if (!erro) return null;
+  return (
+    <div className="mb-6 flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+      <div>
+        <p className="font-medium">Não foi possível carregar a equipe</p>
+        <p className="mt-0.5">{erro}</p>
+      </div>
+    </div>
+  );
+}
+
+function BotaoCopiar({ texto, label }: { texto: string; label: string }) {  const [copiado, setCopiado] = useState(false);
   async function copiar() {
     try {
       await navigator.clipboard.writeText(texto);
@@ -92,6 +106,79 @@ export default function UsuariosPage() {
     email: string;
     senha: string;
   } | null>(null);
+
+  // Equipe REAL (contas autenticadas vinculadas à organização) — vem da
+  // API /api/admin/funcionarios (organizacao_usuarios + usuarios).
+  const [equipeReal, setEquipeReal] = useState<
+    {
+      authUserId: string;
+      nome: string;
+      email: string;
+      telefone: string;
+      papel: PapelOrganizacao;
+      ativo: boolean;
+      vinculadoEm: string | null;
+    }[]
+  >([]);
+  const [erroEquipeReal, setErroEquipeReal] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+    fetch("/api/admin/funcionarios")
+      .then(async (res) => {
+        const dados = await res.json();
+        if (!res.ok) throw new Error(dados.erro ?? "Não foi possível carregar a equipe.");
+        if (ativo) setEquipeReal(dados.funcionarios ?? []);
+      })
+      .catch((e) => {
+        if (ativo) setErroEquipeReal(e instanceof Error ? e.message : "Falha ao carregar a equipe.");
+      });
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  // Linhas da tabela: funcionários do catálogo (demo/editable) + equipe
+  // real (somente leitura), sem duplicar por e-mail — a conta real vence.
+  const linhas = useMemo(() => {
+    type Linha = {
+      id: string;
+      nome: string;
+      email: string;
+      telefone: string;
+      papel: PapelOrganizacao;
+      organizacaoId: string;
+      ativo: boolean;
+      permissoes: ModuloOrganizacao[];
+      real: boolean;
+    };
+    const emailsReais = new Set(equipeReal.map((r) => r.email.toLowerCase()));
+    const catálogo: Linha[] = funcionarios
+      .filter((f) => !emailsReais.has(f.email.trim().toLowerCase()))
+      .map((f) => ({
+        id: f.id,
+        nome: f.nome,
+        email: f.email,
+        telefone: f.telefone,
+        papel: f.papel,
+        organizacaoId: f.organizacaoId,
+        ativo: f.ativo,
+        permissoes: f.permissoes ?? PERMISSOES_POR_PAPEL[f.papel],
+        real: false,
+      }));
+    const reais: Linha[] = equipeReal.map((r) => ({
+      id: r.authUserId,
+      nome: r.nome,
+      email: r.email,
+      telefone: r.telefone,
+      papel: r.papel,
+      organizacaoId: "",
+      ativo: r.ativo,
+      permissoes: PERMISSOES_POR_PAPEL[r.papel],
+      real: true,
+    }));
+    return [...catálogo, ...reais].sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [funcionarios, equipeReal]);
 
   function abrirNovo() {
     setEditandoId(null);
@@ -197,7 +284,9 @@ export default function UsuariosPage() {
         </Button>
       </header>
 
-      {funcionarios.length === 0 ? (
+      <AlertaEquipeReal erro={erroEquipeReal} />
+
+      {linhas.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Nenhum funcionário cadastrado ainda.
@@ -217,10 +306,18 @@ export default function UsuariosPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {funcionarios.map((f) => (
+              {linhas.map((f) => (
                 <tr key={f.id}>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-slate-900 dark:text-white">{f.nome}</p>
+                    <p className="font-medium text-slate-900 dark:text-white">
+                      {f.nome}
+                      {f.real && (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brand-blue/10 px-2 py-0.5 text-[11px] font-medium text-brand-blue">
+                          <ShieldCheck className="h-3 w-3" />
+                          Conta real
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {f.email} · {f.telefone || "sem telefone"}
                     </p>
@@ -236,14 +333,16 @@ export default function UsuariosPage() {
                     <button
                       type="button"
                       onClick={() => abrirEdicao(f)}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                      disabled={f.real}
+                      title={f.real ? "Conta real — papel definido no vínculo da organização" : undefined}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                     >
                       <KeyRound className="h-3 w-3" />
                       {(f.permissoes ?? []).length} funções
                     </button>
                   </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                    {nomeOrganizacao(f.organizacaoId)}
+                    {f.real ? "Longevida (produção)" : nomeOrganizacao(f.organizacaoId)}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -257,23 +356,29 @@ export default function UsuariosPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        aria-label={`Editar ${f.nome}`}
-                        onClick={() => abrirEdicao(f)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        aria-label={`Excluir ${f.nome}`}
-                        className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
-                        onClick={() => setExcluindo(f)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    {f.real ? (
+                      <span className="text-xs text-slate-400 dark:text-slate-500">
+                        Gerenciada pelo vínculo
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          aria-label={`Editar ${f.nome}`}
+                          onClick={() => abrirEdicao(f)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          aria-label={`Excluir ${f.nome}`}
+                          className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                          onClick={() => setExcluindo(f)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

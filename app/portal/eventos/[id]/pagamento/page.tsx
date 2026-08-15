@@ -9,7 +9,7 @@ import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { usePagamentos } from "@/lib/mock/pagamentos-store";
 import { useSessao } from "@/lib/mock/sessao";
 import { CHAVE_PIX_LONGEVIDA, QR_PIX_LONGEVIDA } from "@/lib/config";
@@ -246,7 +246,7 @@ export default function PagamentoPage() {
                       />
                       <div>
                         <p className="text-sm font-medium text-slate-900 dark:text-white">
-                          {inscricao.atletaNome}
+                          {nomeDaInscricao(inscricao)}
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           {descricaoProva(inscricao.provaId)}

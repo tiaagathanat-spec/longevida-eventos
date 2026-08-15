@@ -22,10 +22,18 @@ export type Inscricao = {
   status: InscricaoStatus;
   dataInscricao: string; // ISO date
   numeroPeito?: string; // usado no módulo Financeiro; opcional, não afeta telas existentes
+  // Inscrição em DUPLA: atletaNome é o participante principal (dono da
+  // inscrição); atletaNome2 é o segundo participante. Persistido em
+  // app_inscricoes.atleta_nome_2 (migration 0013).
+  atletaNome2?: string;
 };
+
+export { nomeDaInscricao } from "./inscricoes-utils";
 
 type InscricoesContextValue = {
   inscricoes: Inscricao[];
+  pronto: boolean;
+  erro: string | null;
   obterPorId: (id: string) => Inscricao | undefined;
   criar: (dados: Omit<Inscricao, "id" | "dataInscricao">) => Inscricao;
   atualizar: (id: string, dados: Partial<Omit<Inscricao, "id" | "dataInscricao">>) => void;
@@ -68,7 +76,12 @@ function gerarId() {
 }
 
 export function InscricoesProvider({ children }: { children: ReactNode }) {
-  const { dados: inscricoes, setDados: setInscricoes } = usePersistencia<Inscricao>(
+  const {
+    dados: inscricoes,
+    setDados: setInscricoes,
+    pronto,
+    erro,
+  } = usePersistencia<Inscricao>(
     "app_inscricoes",
     INSCRICOES_INICIAIS,
     { ordem: "id" }
@@ -77,6 +90,8 @@ export function InscricoesProvider({ children }: { children: ReactNode }) {
   const value = useMemo<InscricoesContextValue>(
     () => ({
       inscricoes,
+      pronto,
+      erro,
       obterPorId: (id) => inscricoes.find((i) => i.id === id),
       criar: (dados) => {
         const nova: Inscricao = {
@@ -99,7 +114,7 @@ export function InscricoesProvider({ children }: { children: ReactNode }) {
         setInscricoes((atual) => atual.filter((i) => i.id !== id));
       },
     }),
-    [inscricoes]
+    [inscricoes, pronto, erro]
   );
 
   return (

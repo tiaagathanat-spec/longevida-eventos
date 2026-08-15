@@ -31,6 +31,8 @@ export type Patrocinador = {
 
 type PatrocinadoresContextValue = {
   patrocinadores: Patrocinador[];
+  pronto: boolean;
+  erro: string | null;
   obterPorId: (id: string) => Patrocinador | undefined;
   criar: (dados: Omit<Patrocinador, "id">) => Patrocinador;
   atualizar: (id: string, dados: Omit<Patrocinador, "id">) => void;
@@ -74,7 +76,12 @@ function gerarId() {
 }
 
 export function PatrocinadoresProvider({ children }: { children: ReactNode }) {
-  const { dados: patrocinadores, setDados: setPatrocinadores } = usePersistencia<Patrocinador>(
+  const {
+    dados: patrocinadores,
+    setDados: setPatrocinadores,
+    pronto,
+    erro,
+  } = usePersistencia<Patrocinador>(
     "app_patrocinadores",
     PATROCINADORES_INICIAIS,
     { ordem: "id" }
@@ -83,6 +90,8 @@ export function PatrocinadoresProvider({ children }: { children: ReactNode }) {
   const value = useMemo<PatrocinadoresContextValue>(
     () => ({
       patrocinadores,
+      pronto,
+      erro,
       obterPorId: (id) => patrocinadores.find((p) => p.id === id),
       criar: (dados) => {
         const novo: Patrocinador = { id: gerarId(), ...dados };
@@ -116,7 +125,7 @@ export function PatrocinadoresProvider({ children }: { children: ReactNode }) {
         );
       },
     }),
-    [patrocinadores]
+    [patrocinadores, pronto, erro]
   );
 
   return (

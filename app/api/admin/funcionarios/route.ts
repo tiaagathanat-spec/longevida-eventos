@@ -26,8 +26,74 @@ function gerarSenhaTemporaria(): string {
   return Array.from(rnd, (b) => charset[b % charset.length]).join("");
 }
 
-export async function POST(request: Request) {
+// Lista a equipe REAL vinculada à organização do administrador: vínculos
+// de public.organizacao_usuarios + perfis de public.usuarios. Usa o
+// cliente autenticado (RLS): o admin lê os vínculos da própria org e os
+// perfis de todos os usuários por ter vínculo — sem service_role.
+export async function GET() {
   const usuario = await getUsuarioAtual();
+  if (!usuario) {
+    return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+  }
+
+  const organizacoes = await getOrganizacoesDoUsuario(usuario.id);
+  const orgAdmin = organizacoes.find((o) => o.papel === "administrador");
+  if (!orgAdmin) {
+    return NextResponse.json(
+      { erro: "Você precisa ser administrador para ver os funcionários." },
+      { status: 403 }
+    );
+  }
+
+  const supabase = createClient();
+
+  const { data: vinculos, error: erroVinculos } = await supabase
+    .from("organizacao_usuarios")
+    .select("usuario_id, papel, vinculado_em")
+    .eq("organizacao_id", orgAdmin.organizacaoId);
+
+  if (erroVinculos) {
+    return NextResponse.json(
+      { erro: `Não foi possível carregar a equipe: ${erroVinculos.message}` },
+      { status: 500 }
+    );
+  }
+
+  const ids = (vinculos ?? []).map((v) => v.usuario_id);
+  const perfis = ids.length > 0
+    ? await supabase.from("usuarios").select("id, nome, email, telefone, tipo_conta").in("id", ids)
+    : { data: [], error: null };
+
+  if (perfis.error) {
+    return NextResponse.json(
+      { erro: `Não foi possível carregar os perfis: ${perfis.error.message}` },
+      { status: 500 }
+    );
+  }
+
+  const perfilPorId = new Map(
+    (perfis.data ?? []).map((p) => [p.id, p])
+  );
+
+  const funcionarios = (vinculos ?? [])
+    .map((v) => {
+      const perfil = perfilPorId.get(v.usuario_id);
+      return {
+        authUserId: v.usuario_id,
+        nome: perfil?.nome ?? "Sem nome cadastrado",
+        email: perfil?.email ?? "",
+        telefone: perfil?.telefone ?? "",
+        papel: v.papel,
+        ativo: true,
+        vinculadoEm: v.vinculado_em ?? null,
+      };
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+
+  return NextResponse.json({ funcionarios });
+}
+
+export async function POST(request: Request) {  const usuario = await getUsuarioAtual();
   if (!usuario) {
     return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
   }

@@ -16,6 +16,8 @@ export type TipoProva = {
 
 type TiposProvaContextValue = {
   tiposProva: TipoProva[];
+  pronto: boolean;
+  erro: string | null;
   carregando: boolean;
   obterPorId: (id: string) => TipoProva | undefined;
   criar: (dados: Omit<TipoProva, "id">) => Promise<TipoProva>;
@@ -40,14 +42,32 @@ const TIPOS_PROVA_INICIAIS: TipoProva[] = [
     permiteEquipe: true,
     descricao: "Prova disputada em equipes de revezamento.",
   },
+  {
+    id: "dupla",
+    nome: "Dupla",
+    permiteEquipe: true,
+    descricao: "Prova disputada em duplas (2 participantes por inscrição).",
+  },
 ];
+
+// Um tipo de prova é de DUPLA pelo nome "Dupla" (id "dupla"). Usado pelas
+// telas de inscrição: não checamos permiteEquipe, pois "Revezamento"
+// também tem permiteEquipe = true.
+export function eTipoDupla(tipoProva: Pick<TipoProva, "nome"> | undefined) {
+  return tipoProva?.nome.toLowerCase() === "dupla";
+}
 
 function gerarId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
 export function TiposProvaProvider({ children }: { children: ReactNode }) {
-  const { dados: tiposProva, setDados: setTiposProva } = usePersistencia<TipoProva>(
+  const {
+    dados: tiposProva,
+    setDados: setTiposProva,
+    pronto,
+    erro,
+  } = usePersistencia<TipoProva>(
     "app_tipos_prova",
     TIPOS_PROVA_INICIAIS,
     { ordem: "id" }
@@ -56,6 +76,8 @@ export function TiposProvaProvider({ children }: { children: ReactNode }) {
   const value = useMemo<TiposProvaContextValue>(
     () => ({
       tiposProva,
+      pronto,
+      erro,
       carregando: false,
       obterPorId: (id) => tiposProva.find((t) => t.id === id),
       criar: async (dados) => {
@@ -74,7 +96,7 @@ export function TiposProvaProvider({ children }: { children: ReactNode }) {
         setTiposProva((atual) => atual.filter((t) => t.id !== id));
       },
     }),
-    [tiposProva]
+    [tiposProva, pronto, erro]
   );
 
   return (

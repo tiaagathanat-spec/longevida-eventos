@@ -51,6 +51,21 @@ export function limparJson<T>(valor: T): T {
   ) as T;
 }
 
+// Aguarda o cliente de navegador restaurar a sessão do cookie antes de
+// qualquer consulta. O Supabase restaura a sessão de forma ASSÍNCRONA na
+// montagem: sem esta espera, o primeiro SELECT dispara ainda sem token e
+// roda como anônimo. Para as tabelas com RLS isso é erro de permissão, o
+// `carregar` retorna `null` e as telas mostram o seed em memória — é o
+// comportamento de "dados salvos somem ao recarregar a página".
+//
+// OBSERVAÇÃO: a espera precisa ser feita no MESMO client que executa a
+// consulta (é por isso que `carregar` chama `getSession()` no `supabase`
+// que já criou, e não num helper separado).
+//
+// `getSession()` é local (lê o cookie, sem ida ao servidor de auth): o
+// middleware já renova a sessão a cada request, então o cookie está válido
+// no momento do carregamento.
+
 // Carrega todas as linhas de uma tabela. Retorna `null` quando a tabela
 // não existe ou a consulta falhou (o chamador mantém o seed em memória).
 export async function carregar<T>(
@@ -59,6 +74,7 @@ export async function carregar<T>(
 ): Promise<T[] | null> {
   try {
     const supabase = createClient();
+    await supabase.auth.getSession();
     let query = supabase.from(tabela).select("*");
     if (ordem) query = query.order(ordem);
     const { data, error } = await query;
@@ -69,14 +85,17 @@ export async function carregar<T>(
   }
 }
 
-// Grava as linhas na tabela, uma por uma, e retorna `true` se todas
-// foram persistidas. O upsert individual é necessário porque o PostgREST
-// exige que todas as linhas de um array tenham as mesmas chaves: linhas
-// recém-criadas nas telas têm menos campos que as carregadas do banco, e
-// o array misto fazia o PostgREST preencher as chaves ausentes com NULL,
-// violando colunas `not null default ''` (erro 400). No upsert individual,
-// campos ausentes usam o default na criação e são preservados na edição
-// (merge).
+// Grava as linhas na tabela, uma por uma, e retorna `{ ok, motivo }`. O
+// upsert individual é necessário porque o PostgREST exige que todas as
+// linhas de um array tenham as mesmas chaves: linhas recém-criadas nas
+// telas têm menos campos que as carregadas do banco, e o array misto
+// fazia o PostgREST preencher as chaves ausentes com NULL, violando
+// colunas `not null default ''` (erro 400). No upsert individual, campos
+// ausentes usam o default na criação e são preservados na edição (merge).
+//
+// O motivo NUNCA é omitido num erro: `usePersistencia` o repassa para a
+// tela (campo `erro`), para que um cadastro que não foi persistido nunca
+// "aparente salvar".
 //
 // SEGURANÇA (RLS por organização/evento):
 //   * Array vazio NÃO apaga a tabela. Remoções são responsabilidade do
@@ -84,21 +103,27 @@ export async function carregar<T>(
 //     autoriza operação destrutiva.
 //   * Erro de permissão (42501) = linha fora do escopo do usuário: a
 //     linha é PULADA e a gravação continua (o usuário só persiste o que
-//     realmente pode alterar), mas o retorno vira `false` — o bloqueio
-//     RLS nunca é tratado como sucesso e a base de sincronização não
-//     avança (a linha não persistida é reenviada na próxima mudança).
+//     realmente pode alterar), mas o retorno vira `{ ok: false }` — o
+//     bloqueio RLS nunca é tratado como sucesso e a base de sincronização
+//     não avança (a linha não persistida é reenviada na próxima mudança).
 //   * Demais erros (constraint etc.) abortam a gravação e retornam
-//     `false`, como antes.
+//     `{ ok: false, motivo }`, como antes.
 //   * Erro 42P01 (tabela ainda não criada) continua sendo ignorado.
+export type ResultadoGravarLinhas = {
+  ok: boolean;
+  // Descrição amigável do motivo da falha (permissão, constraint, rede).
+  motivo?: string;
+};
+
 export async function gravarLinhas<T>(
   tabela: string,
   linhas: T[],
   chaveColuna: string = "id"
-): Promise<boolean> {
+): Promise<ResultadoGravarLinhas> {
   try {
     const supabase = createClient();
     if (linhas.length === 0) {
-      return true;
+      return { ok: true };
     }
     let bloqueioRls = false;
     for (const linha of linhas) {
@@ -115,10 +140,18 @@ export async function gravarLinhas<T>(
           continue;
         }
         console.warn(`[persistencia] gravar ${tabela}:`, error.message);
-        return false;
+        return {
+          ok: false,
+          motivo: `Não foi possível salvar em ${tabela}: ${error.message}`,
+        };
       }
     }
-    return !bloqueioRls;
+    return bloqueioRls
+      ? {
+          ok: false,
+          motivo: `Permissão negada ao salvar em ${tabela}. Entre com um perfil com acesso a este módulo.`,
+        }
+      : { ok: true };
   } catch (err) {
     console.warn(`[persistencia] falha ao gravar ${tabela}:`, err);
     // Falha de rede (a chamada lançou): guarda as linhas na fila offline
@@ -128,7 +161,10 @@ export async function gravarLinhas<T>(
     for (const linha of linhas) {
       enfileirarFila(tabela, camelParaSnake(limparJson(linha as Linha)));
     }
-    return false;
+    return {
+      ok: false,
+      motivo: `Sem conexão com o servidor ao salvar em ${tabela}. Suas alterações foram guardadas para sincronizar.`,
+    };
   }
 }
 
@@ -140,6 +176,7 @@ export async function processarFilaOffline(): Promise<void> {
   const pendentes = obterPendentesFila();
   if (pendentes.length === 0) return;
   const supabase = createClient();
+  await supabase.auth.getSession();
   for (const item of pendentes) {
     try {
       const { error } = await supabase.from(item.tabela).upsert(item.linha);
@@ -165,10 +202,14 @@ type OpcoesPersistencia<T> = {
 
 // Hook de persistência para substituir `useState` nas stores.
 //
-// Retorna a mesma interface de `useState` (`dados`/`setDados`) e um
-// flag `pronto`. Na montagem carrega as linhas do banco; a partir daí,
-// cada alteração em `dados` é sincronizada: linhas removidas são
-// apagadas do banco e as demais são feitas upsert.
+// Retorna a mesma interface de `useState` (`dados`/`setDados`), o flag
+// `pronto` (carga inicial concluída) e `erro` (motivo da última
+// sincronização falha, ou null). Na montagem carrega as linhas do banco;
+// a partir daí, cada alteração em `dados` é sincronizada: linhas
+// removidas são apagadas do banco e as demais são feitas upsert. Uma
+// falha de gravação (permissão RLS, constraint ou rede) nunca é tratada
+// como sucesso: o dado fica apenas em memória e o motivo é exposto em
+// `erro` para a tela não "aparentar salvar".
 export function usePersistencia<T>(
   tabela: string,
   estadoInicial: T[],
@@ -177,6 +218,10 @@ export function usePersistencia<T>(
   const { ordem, idCampo = "id" as keyof T, idColuna = "id" } = opcoes;
   const [dados, setDados] = useState<T[]>(estadoInicial);
   const [pronto, setPronto] = useState(false);
+  // Erro da última sincronização. Nunca é ocultado: se um cadastro/edição
+  // não foi persistido (RLS, constraint ou rede), a tela precisa saber para
+  // não "aparentar salvar". Limpa na próxima sincronização bem-sucedida.
+  const [erro, setErro] = useState<string | null>(null);
   const prontoRef = useRef(false);
   const ultimoSincronizadoRef = useRef<T[]>(estadoInicial);
   const usuarioEditouRef = useRef(false);
@@ -196,7 +241,23 @@ export function usePersistencia<T>(
     let ativo = true;
     carregar<T>(tabela, ordem)
       .then((linhas) => {
-        if (!ativo || linhas === null) return;
+        if (!ativo) return;
+        if (linhas === null) {
+          // Falha ao carregar. Se há sessão, expõe o motivo (os dados
+          // reais não chegaram) em vez de mostrar o seed silenciosamente —
+          // que parece um "reset" das informações. Sem sessão (páginas
+          // públicas) o seed é o comportamento esperado e nada é exibido.
+          createClient()
+            .auth.getSession()
+            .then(({ data: sessao }) => {
+              if (ativo && sessao.session) {
+                setErro(
+                  `Não foi possível carregar os dados de ${tabela} (sem conexão ou sem permissão). Recarregue a página.`
+                );
+              }
+            });
+          return;
+        }
         if (usuarioEditouRef.current) return;
         ultimoSincronizadoRef.current = linhas;
         setDados(linhas);
@@ -240,17 +301,26 @@ export function usePersistencia<T>(
         : Promise.resolve({ error: null });
 
     Promise.all([remocao, gravarLinhas<T>(tabela, dados, idColuna)]).then(
-      ([{ error: erroRemocao }, gravado]) => {
+      ([{ error: erroRemocao }, resultado]) => {
         const falhouRemocao = !!erroRemocao && erroRemocao.code !== "42P01";
         if (falhouRemocao) {
           console.warn(`[persistencia] remover ${tabela}:`, erroRemocao.message);
         }
-        if (gravado && !falhouRemocao) {
+        if (resultado.ok && !falhouRemocao) {
           ultimoSincronizadoRef.current = dados;
+          setErro(null);
+          return;
         }
+        // Sincronização não completou: deixa a base de sincronização onde
+        // está (a próxima mudança tenta de novo) e EXPÕE o motivo na tela.
+        setErro(
+          falhouRemocao
+            ? `Não foi possível excluir dados em ${tabela}: ${erroRemocao.message}`
+            : resultado.motivo ?? `Não foi possível salvar os dados em ${tabela}.`
+        );
       }
     );
   }, [tabela, dados, idCampo, idColuna, pronto]);
 
-  return { dados, setDados: setDadosComControle, pronto };
+  return { dados, setDados: setDadosComControle, pronto, erro };
 }

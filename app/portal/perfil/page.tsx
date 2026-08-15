@@ -21,10 +21,11 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 export default function MeuPerfilPage() {
   const { sessao, definirSessao } = useSessao();
-  const { obterPorEmail, atualizar, criar } = usePerfis();
+  const { obterPorEmail, atualizar, criar, erro: erroPerfis } = usePerfis();
 
   const perfilExistente = obterPorEmail(sessao.email);
 
@@ -129,6 +130,8 @@ export default function MeuPerfilPage() {
           Seus dados pessoais e foto de perfil usados no Portal do Atleta.
         </p>
       </header>
+
+      <AlertaPersistencia erro={erroPerfis} />
 
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
         {/* Foto de perfil */}

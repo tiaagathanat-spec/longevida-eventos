@@ -8,7 +8,7 @@ import { ArrowLeft, CreditCard, Printer } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas, identificacaoDaProva } from "@/lib/mock/provas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { usePerfis } from "@/lib/mock/perfis-store";
 import { useQrDaInscricao } from "@/lib/mock/qrcodes-store";
@@ -139,7 +139,7 @@ export default function CardsDoEventoPage() {
               <CrachaComQr
                 key={inscricao.id}
                 inscricaoId={inscricao.id}
-                atletaNome={inscricao.atletaNome}
+                atletaNome={nomeDaInscricao(inscricao)}
                 categoriaNome={categoria.nome}
                 eventoNome={evento.nome}
                 dataEvento={formatarData(evento.data)}

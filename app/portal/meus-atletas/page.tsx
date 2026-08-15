@@ -1,14 +1,17 @@
 "use client";
 
 import { useMemo, useState, FormEvent } from "react";
-import { Plus, User, Pencil, HeartPulse } from "lucide-react";
+import { Plus, User, Pencil, HeartPulse, Trash2 } from "lucide-react";
 import { useAtletas } from "@/lib/mock/atletas-store";
+import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useSessao } from "@/lib/mock/sessao";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 type FormState = {
   nome: string;
@@ -37,7 +40,8 @@ function calcularIdade(dataNascimento: string) {
 }
 
 export default function MeusAtletasPage() {
-  const { atletas, criar, atualizar } = useAtletas();
+  const { atletas, criar, atualizar, excluir, erro: erroAtletas } = useAtletas();
+  const { inscricoes } = useInscricoes();
   const { categorias } = useCategorias();
   const { sessao } = useSessao();
 
@@ -48,6 +52,7 @@ export default function MeusAtletasPage() {
 
   const [modalAberto, setModalAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [excluirId, setExcluirId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(FORM_VAZIO);
   const [erros, setErros] = useState<Record<string, string>>({});
 
@@ -112,6 +117,19 @@ export default function MeusAtletasPage() {
     setModalAberto(false);
   }
 
+  const atletaParaExcluir = excluirId
+    ? meusAtletas.find((a) => a.id === excluirId)
+    : null;
+  const inscricoesDoAtleta = atletaParaExcluir
+    ? inscricoes.filter((i) => i.atletaNome === atletaParaExcluir.nome)
+    : [];
+
+  function handleExcluir() {
+    if (!excluirId) return;
+    excluir(excluirId);
+    setExcluirId(null);
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
       <header className="mb-8 flex items-center justify-between">
@@ -126,6 +144,8 @@ export default function MeusAtletasPage() {
           Adicionar atleta
         </Button>
       </header>
+
+      <AlertaPersistencia erro={erroAtletas} />
 
       {meusAtletas.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
@@ -166,9 +186,19 @@ export default function MeusAtletasPage() {
                     ) : null}
                   </div>
                 </div>
-                <Button variant="ghost" aria-label={`Editar ${atleta.nome}`} onClick={() => abrirEdicao(atleta.id)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" aria-label={`Editar ${atleta.nome}`} onClick={() => abrirEdicao(atleta.id)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    aria-label={`Excluir ${atleta.nome}`}
+                    className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                    onClick={() => setExcluirId(atleta.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             );
           })}
@@ -234,6 +264,19 @@ export default function MeusAtletasPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={!!atletaParaExcluir}
+        title={`Excluir ${atletaParaExcluir?.nome ?? "atleta"}?`}
+        description={
+          inscricoesDoAtleta.length > 0
+            ? `${atletaParaExcluir?.nome} tem ${inscricoesDoAtleta.length} inscrição(ões) em eventos. Excluir o atleta remove o vínculo com sua conta: você deixará de enxergar e gerenciar essas inscrições.`
+            : "Esta ação não pode ser desfeita."
+        }
+        confirmLabel="Excluir"
+        onConfirm={handleExcluir}
+        onCancel={() => setExcluirId(null)}
+      />
     </div>
   );
 }

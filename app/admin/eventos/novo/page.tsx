@@ -10,10 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 export default function NovoEventoPage() {
   const router = useRouter();
-  const { criar } = useEventos();
+  const { criar, erro } = useEventos();
 
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -97,6 +98,8 @@ export default function NovoEventoPage() {
       </p>
 
       <form onSubmit={handleSubmit} noValidate className="mt-8 flex flex-col gap-4">
+        <AlertaPersistencia erro={erro} />
+
         <Input
           id="nome"
           label="Nome do evento"

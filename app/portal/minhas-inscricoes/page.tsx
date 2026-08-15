@@ -8,10 +8,11 @@ import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
-import { useInscricoes, InscricaoStatus } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, InscricaoStatus, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useSessao } from "@/lib/mock/sessao";
 import { useQrDaInscricao } from "@/lib/mock/qrcodes-store";
 import { ModalQrInscricao } from "@/components/qrcode/modal-qr-inscricao";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 const STATUS_LABEL: Record<InscricaoStatus, string> = {
   pendente: "Pagamento pendente",
@@ -32,7 +33,7 @@ export default function MinhasInscricoesPage() {
   const { categorias } = useCategorias();
   const { provas } = useProvas();
   const { atletas } = useAtletas();
-  const { inscricoes } = useInscricoes();
+  const { inscricoes, erro: erroInscricoes } = useInscricoes();
   const [inscricaoQrId, setInscricaoQrId] = useState<string | null>(null);
 
   const inscricaoComQr = inscricoes.find((i) => i.id === inscricaoQrId);
@@ -75,6 +76,8 @@ export default function MinhasInscricoesPage() {
         </p>
       </header>
 
+      <AlertaPersistencia erro={erroInscricoes} />
+
       {minhasInscricoes.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
           <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -97,7 +100,7 @@ export default function MinhasInscricoesPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-white">
-                    {inscricao.atletaNome}
+                    {nomeDaInscricao(inscricao)}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {nomeEvento(inscricao.eventoId)} · {descricaoProva(inscricao.provaId)}
@@ -142,7 +145,7 @@ export default function MinhasInscricoesPage() {
           onFechar={() => setInscricaoQrId(null)}
           conteudo={qrDaInscricao.identificador}
           identificador={qrDaInscricao.identificador}
-          subtitulo={`${inscricaoComQr.atletaNome} · ${nomeEvento(inscricaoComQr.eventoId)} · ${descricaoProva(inscricaoComQr.provaId)}`}
+          subtitulo={`${nomeDaInscricao(inscricaoComQr)} · ${nomeEvento(inscricaoComQr.eventoId)} · ${descricaoProva(inscricaoComQr.provaId)}`}
         />
       )}
     </div>

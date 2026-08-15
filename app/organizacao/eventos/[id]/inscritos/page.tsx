@@ -18,6 +18,7 @@ import {
   resolverGrupoNumeracao,
 } from "@/lib/mock/faixas-numeracao-store";import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 
 export default function OrganizacaoInscritosPage() {
@@ -28,10 +29,10 @@ export default function OrganizacaoInscritosPage() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
-  const { inscricoes } = useInscricoes();
+  const { inscricoes, erro: erroInscricoes } = useInscricoes();
   const { atletas } = useAtletas();
   const { obterPorInscricao: obterResultado } = useResultados();
-  const { obterPorInscricao: obterDorsal, atualizarControles } = useDorsais();
+  const { obterPorInscricao: obterDorsal, atualizarControles, erro: erroDorsais } = useDorsais();
   const { obterCriterio, obter: obterFaixa } = useFaixasNumeracao();
   const { nome: nomeOperador } = useUsuarioOrganizacao();
 
@@ -113,8 +114,10 @@ export default function OrganizacaoInscritosPage() {
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
           Atletas inscritos
         </h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{evento.nome}</p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{evento.nome}        </p>
       </header>
+
+      <AlertaPersistencia erro={erroInscricoes ?? erroDorsais} />
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <div className="max-w-xs flex-1">

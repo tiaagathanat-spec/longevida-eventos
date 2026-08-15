@@ -104,6 +104,8 @@ export const ORGANIZACOES_DEMO: OrganizacaoDemo[] = [
 
 type FuncionariosContextValue = {
   funcionarios: Funcionario[];
+  pronto: boolean;
+  erro: string | null;
   obterPorId: (id: string) => Funcionario | undefined;
   criar: (dados: Omit<Funcionario, "id">) => Funcionario;
   atualizar: (id: string, dados: Omit<Funcionario, "id">) => void;
@@ -163,7 +165,12 @@ function gerarId() {
 }
 
 export function FuncionariosProvider({ children }: { children: ReactNode }) {
-  const { dados: funcionarios, setDados: setFuncionarios } = usePersistencia<Funcionario>(
+  const {
+    dados: funcionarios,
+    setDados: setFuncionarios,
+    pronto,
+    erro,
+  } = usePersistencia<Funcionario>(
     "app_funcionarios",
     FUNCIONARIOS_INICIAIS,
     { ordem: "id" }
@@ -172,6 +179,8 @@ export function FuncionariosProvider({ children }: { children: ReactNode }) {
   const value = useMemo<FuncionariosContextValue>(
     () => ({
       funcionarios,
+      pronto,
+      erro,
       obterPorId: (id) => funcionarios.find((f) => f.id === id),
       criar: (dados) => {
         const novo: Funcionario = { id: gerarId(), ...dados };
@@ -192,7 +201,7 @@ export function FuncionariosProvider({ children }: { children: ReactNode }) {
         setFuncionarios((atual) => atual.filter((f) => f.id !== id));
       },
     }),
-    [funcionarios]
+    [funcionarios, pronto, erro]
   );
 
   return (

@@ -17,17 +17,19 @@ import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useDorsais, obterUltimaAuditoria } from "@/lib/mock/dorsais-store";
 import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 import { useQrCodes } from "@/lib/mock/qrcodes-store";
 import { LeitorQr } from "@/components/qrcode/leitor-qr";
 import { Button } from "@/components/ui/button";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 type ResumoInscricao = {
   inscricaoId: string;
   atletaNome: string;
+  atletaNome2?: string;
   provaNome: string;
   eventoNome: string;
   numeroPeito: string | null;
@@ -42,11 +44,12 @@ export default function OrganizacaoLeitorQrPage() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
-  const { inscricoes } = useInscricoes();
+  const { inscricoes, erro: erroInscricoes } = useInscricoes();
   const { atletas } = useAtletas();
   const { obterPorInscricao: obterDorsal, atualizarControles } = useDorsais();
   const { nome } = useUsuarioOrganizacao();
-  const { localizarPorIdentificador, registrarLeitura, alternarAtivo } = useQrCodes();
+  const { localizarPorIdentificador, registrarLeitura, alternarAtivo, erro: erroQrCodes } =
+    useQrCodes();
 
   const evento = obterEvento(eventoId);
 
@@ -132,6 +135,7 @@ export default function OrganizacaoLeitorQrPage() {
     return {
       inscricaoId: inscricao.id,
       atletaNome: inscricao.atletaNome,
+      atletaNome2: inscricao.atletaNome2,
       provaNome: prova
         ? `${nomeModalidade(prova.modalidadeId)} · ${nomeCategoria(prova.categoriaId)}`
         : "—",
@@ -173,6 +177,8 @@ export default function OrganizacaoLeitorQrPage() {
         </p>
       </header>
 
+      <AlertaPersistencia erro={erroInscricoes ?? erroQrCodes} />
+
       {aviso && (
         <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-300">
           {aviso}
@@ -197,7 +203,7 @@ export default function OrganizacaoLeitorQrPage() {
               </div>
               <div>
                 <p className="text-base font-semibold text-slate-900 dark:text-white">
-                  {resumo.atletaNome}
+                  {nomeDaInscricao(resumo)}
                 </p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   {resumo.provaNome}

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 type FormState = {
   nome: string;
@@ -41,7 +42,7 @@ function calcularIdade(dataNascimento: string) {
 }
 
 export default function AtletasPage() {
-  const { atletas, criar, atualizar, excluir } = useAtletas();
+  const { atletas, criar, atualizar, excluir, erro: erroAtletas } = useAtletas();
   const { categorias } = useCategorias();
 
   const [busca, setBusca] = useState("");
@@ -129,6 +130,8 @@ export default function AtletasPage() {
           Novo atleta
         </Button>
       </header>
+
+      <AlertaPersistencia erro={erroAtletas} />
 
       <div className="relative mb-6 max-w-sm">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

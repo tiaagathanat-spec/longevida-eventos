@@ -7,6 +7,7 @@ import { useEventos } from "@/lib/mock/eventos-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useResultados } from "@/lib/mock/resultados-store";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 const STATUS_STYLE: Record<string, string> = {
   rascunho: "bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
@@ -29,7 +30,7 @@ function formatarData(iso: string) {
 }
 
 export default function OrganizacaoEventosPage() {
-  const { eventos } = useEventos();
+  const { eventos, erro: erroEventos } = useEventos();
   const { provas } = useProvas();
   const { inscricoes } = useInscricoes();
   const { obterPorInscricao } = useResultados();
@@ -53,6 +54,8 @@ export default function OrganizacaoEventosPage() {
           Selecione um evento para lançar resultados, conferir inscritos e organizar os kits.
         </p>
       </header>
+
+      <AlertaPersistencia erro={erroEventos} />
 
       {resumo.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">

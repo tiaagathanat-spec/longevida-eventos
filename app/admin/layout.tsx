@@ -41,9 +41,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 print:bg-white dark:bg-slate-900">
+    <div className="flex min-h-screen bg-gradient-to-b from-slate-50 via-slate-50 to-brand-blue/10 print:bg-white dark:from-slate-900 dark:via-slate-900 dark:to-slate-900">
       <AdminSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
+        <div className="h-1 shrink-0 bg-gradient-to-r from-brand-blue via-brand-green to-brand-blue-dark" />
         <CabecalhoUsuario tomClasse="bg-brand-blue/10 text-brand-blue" />
         <div className="min-w-0 flex-1">{children}</div>
       </div>

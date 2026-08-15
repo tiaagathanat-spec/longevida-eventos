@@ -36,6 +36,8 @@ export {
 
 type ProvasContextValue = {
   provas: Prova[];
+  pronto: boolean;
+  erro: string | null;
   listarPorEvento: (eventoId: string) => Prova[];
   obterPorId: (id: string) => Prova | undefined;
   criar: (dados: Omit<Prova, "id">) => Prova;
@@ -77,7 +79,12 @@ function gerarId() {
 }
 
 export function ProvasProvider({ children }: { children: ReactNode }) {
-  const { dados: provas, setDados: setProvas } = usePersistencia<Prova>(
+  const {
+    dados: provas,
+    setDados: setProvas,
+    pronto,
+    erro,
+  } = usePersistencia<Prova>(
     "app_provas",
     PROVAS_INICIAIS,
     { ordem: "id" }
@@ -86,6 +93,8 @@ export function ProvasProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ProvasContextValue>(
     () => ({
       provas,
+      pronto,
+      erro,
       listarPorEvento: (eventoId) => provas.filter((p) => p.eventoId === eventoId),
       obterPorId: (id) => provas.find((p) => p.id === id),
       criar: (dados) => {
@@ -133,7 +142,7 @@ export function ProvasProvider({ children }: { children: ReactNode }) {
         );
       },
     }),
-    [provas]
+    [provas, pronto, erro]
   );
 
   return <ProvasContext.Provider value={value}>{children}</ProvasContext.Provider>;

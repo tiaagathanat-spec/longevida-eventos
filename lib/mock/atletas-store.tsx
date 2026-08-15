@@ -36,6 +36,8 @@ export type Atleta = {
 
 type AtletasContextValue = {
   atletas: Atleta[];
+  pronto: boolean;
+  erro: string | null;
   obterPorId: (id: string) => Atleta | undefined;
   criar: (dados: Omit<Atleta, "id">) => Atleta;
   atualizar: (id: string, dados: Omit<Atleta, "id">) => void;
@@ -108,7 +110,12 @@ function gerarId() {
 }
 
 export function AtletasProvider({ children }: { children: ReactNode }) {
-  const { dados: atletas, setDados: setAtletas } = usePersistencia<Atleta>(
+  const {
+    dados: atletas,
+    setDados: setAtletas,
+    pronto,
+    erro,
+  } = usePersistencia<Atleta>(
     "app_atletas",
     ATLETAS_INICIAIS,
     { ordem: "id" }
@@ -117,6 +124,8 @@ export function AtletasProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AtletasContextValue>(
     () => ({
       atletas,
+      pronto,
+      erro,
       obterPorId: (id) => atletas.find((a) => a.id === id),
       criar: (dados) => {
         const novo: Atleta = { id: gerarId(), ...dados };
@@ -130,7 +139,7 @@ export function AtletasProvider({ children }: { children: ReactNode }) {
         setAtletas((atual) => atual.filter((a) => a.id !== id));
       },
     }),
-    [atletas]
+    [atletas, pronto, erro]
   );
 
   return <AtletasContext.Provider value={value}>{children}</AtletasContext.Provider>;

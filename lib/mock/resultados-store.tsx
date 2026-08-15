@@ -35,6 +35,8 @@ export type Resultado = {
 
 type ResultadosContextValue = {
   resultados: Resultado[];
+  pronto: boolean;
+  erro: string | null;
   obterPorInscricao: (inscricaoId: string) => Resultado | undefined;
   lancar: (
     inscricaoId: string,
@@ -55,7 +57,12 @@ function gerarId() {
 }
 
 export function ResultadosProvider({ children }: { children: ReactNode }) {
-  const { dados: resultados, setDados: setResultados } = usePersistencia<Resultado>(
+  const {
+    dados: resultados,
+    setDados: setResultados,
+    pronto,
+    erro,
+  } = usePersistencia<Resultado>(
     "app_resultados",
     [],
     { ordem: "id" }
@@ -64,6 +71,8 @@ export function ResultadosProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ResultadosContextValue>(
     () => ({
       resultados,
+      pronto,
+      erro,
       obterPorInscricao: (inscricaoId) =>
         resultados.find((r) => r.inscricaoId === inscricaoId),
       lancar: (inscricaoId, tempo, observacao, cronometrista) => {
@@ -153,7 +162,7 @@ export function ResultadosProvider({ children }: { children: ReactNode }) {
         );
       },
     }),
-    [resultados]
+    [resultados, pronto, erro]
   );
 
   return (

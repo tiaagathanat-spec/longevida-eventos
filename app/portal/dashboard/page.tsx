@@ -6,10 +6,11 @@ import { CalendarDays, ClipboardList, Trophy, ArrowRight } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
-import { useInscricoes, InscricaoStatus } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, InscricaoStatus, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { usePublicacoes } from "@/lib/mock/publicacoes-store";
 import { useSessao } from "@/lib/mock/sessao";
 import { usePerfis } from "@/lib/mock/perfis-store";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 const STATUS_LABEL: Record<InscricaoStatus, string> = {
   pendente: "Pendente",
@@ -37,7 +38,7 @@ export default function AtletaDashboardPage() {
   const { eventos } = useEventos();
   const { atletas } = useAtletas();
   const { categorias } = useCategorias();
-  const { inscricoes } = useInscricoes();
+  const { inscricoes, erro: erroInscricoes } = useInscricoes();
   const { publicacoes } = usePublicacoes();
 
   const fotoPerfil = obterPorEmail(sessao.email)?.foto;
@@ -102,6 +103,8 @@ export default function AtletaDashboardPage() {
         </div>
       </header>
 
+      <AlertaPersistencia erro={erroInscricoes} />
+
       {/* KPIs */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {KPIS.map(({ label, value, icon: Icon }) => (
@@ -145,7 +148,7 @@ export default function AtletaDashboardPage() {
                 <div key={item.id} className="flex items-center justify-between py-3">
                   <div>
                     <p className="text-sm font-medium text-slate-900 dark:text-white">
-                      {item.atletaNome}
+                      {nomeDaInscricao(item)}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {nomeEvento(item.eventoId)}

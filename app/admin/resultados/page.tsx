@@ -21,13 +21,14 @@ import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 const REVISAO_STYLE: Record<string, string> = {
   aguardando: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
@@ -56,8 +57,8 @@ export default function ResultadosPage() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
-  const { inscricoes } = useInscricoes();
-  const { resultados, obterPorInscricao, aprovar, rejeitar, voltarParaRevisao } =
+  const { inscricoes, erro: erroInscricoes } = useInscricoes();
+  const { resultados, obterPorInscricao, aprovar, rejeitar, voltarParaRevisao, erro: erroResultados } =
     useResultados();
   const { nome } = useUsuarioOrganizacao();
 
@@ -141,6 +142,8 @@ export default function ResultadosPage() {
           Aprove ou rejeite os tempos lançados antes de publicar a classificação de cada prova.
         </p>
       </header>
+
+      <AlertaPersistencia erro={erroInscricoes ?? erroResultados} />
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <div className="max-w-xs flex-1">
@@ -247,7 +250,7 @@ export default function ResultadosPage() {
                   {comTempo.map(({ inscricao, resultado }) => (
                     <tr key={inscricao.id}>
                       <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
-                        {inscricao.atletaNome}
+                        {nomeDaInscricao(inscricao)}
                         {inscricao.numeroPeito ? (
                           <span className="ml-2 text-xs text-slate-400">
                             peito {inscricao.numeroPeito}
@@ -340,7 +343,7 @@ export default function ResultadosPage() {
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
                 {semTempo.map(({ inscricao }) => (
-                  <span key={inscricao.id}>{inscricao.atletaNome}</span>
+                  <span key={inscricao.id}>{nomeDaInscricao(inscricao)}</span>
                 ))}
               </div>
             </div>

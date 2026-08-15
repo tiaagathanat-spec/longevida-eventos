@@ -30,6 +30,7 @@ import { usePublicacoes } from "@/lib/mock/publicacoes-store";
 import { usePagamentos, pagamentoEfetivo, STATUS_PAGAMENTO_LABEL } from "@/lib/mock/pagamentos-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
 import { Select } from "@/components/ui/select";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 const PAGAMENTO_STYLE: Record<string, string> = {
   pago: "bg-brand-green/10 text-brand-green",
@@ -42,10 +43,10 @@ function formatarMoeda(valor: number) {
 }
 
 export default function AdminDashboardPage() {
-  const { eventos } = useEventos();
+  const { eventos, erro: erroEventos } = useEventos();
   const { provas } = useProvas();
-  const { inscricoes } = useInscricoes();
-  const { atletas } = useAtletas();
+  const { inscricoes, erro: erroInscricoes } = useInscricoes();
+  const { atletas, erro: erroAtletas } = useAtletas();
   const { obterPorInscricao: obterResultado } = useResultados();
   const { estaPublicado } = usePublicacoes();
   const { registros, obterPorInscricao: obterPagamento } = usePagamentos();
@@ -288,6 +289,8 @@ export default function AdminDashboardPage() {
           Visão geral dos eventos, inscrições, pagamentos e resultados do Espaço Longevida.
         </p>
       </header>
+
+      <AlertaPersistencia erro={erroInscricoes ?? erroEventos ?? erroAtletas} />
 
       {/* Atalhos de ação */}
       <section className="mb-8 flex flex-wrap gap-3">

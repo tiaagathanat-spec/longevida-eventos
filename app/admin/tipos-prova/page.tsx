@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 type FormState = {
   nome: string;
@@ -18,7 +19,7 @@ type FormState = {
 const FORM_VAZIO: FormState = { nome: "", permiteEquipe: false, descricao: "" };
 
 export default function TiposProvaPage() {
-  const { tiposProva, criar, atualizar, excluir } = useTiposProva();
+  const { tiposProva, criar, atualizar, excluir, erro: erroTiposProva } = useTiposProva();
 
   const [modalAberto, setModalAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -99,6 +100,8 @@ export default function TiposProvaPage() {
           Novo tipo de prova
         </Button>
       </header>
+
+      <AlertaPersistencia erro={erroTiposProva} />
 
       {tiposProva.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">

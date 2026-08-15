@@ -7,12 +7,13 @@ import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
-import { useInscricoes, Inscricao, InscricaoStatus } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, Inscricao, InscricaoStatus, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 type FormState = {
   atletaId: string; // "" ou "manual" quando não vinculado a um cadastro
@@ -41,8 +42,9 @@ export default function InscricoesPage() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
-  const { atletas } = useAtletas();
-  const { inscricoes, criar, atualizar, alterarStatus, excluir } = useInscricoes();
+  const { atletas, erro: erroAtletas } = useAtletas();
+  const { inscricoes, criar, atualizar, alterarStatus, excluir, erro: erroInscricoes } =
+    useInscricoes();
 
   const [filtroEvento, setFiltroEvento] = useState("todos");
   const [filtroStatus, setFiltroStatus] = useState("todos");
@@ -161,6 +163,8 @@ export default function InscricoesPage() {
         </Button>
       </header>
 
+      <AlertaPersistencia erro={erroAtletas ?? erroInscricoes} />
+
       {/* Filtros */}
       <div className="mb-6 flex flex-wrap gap-3">
         <Select
@@ -208,7 +212,7 @@ export default function InscricoesPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-slate-900 dark:text-white">
-                      {inscricao.atletaNome}
+                      {nomeDaInscricao(inscricao)}
                     </p>
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLE[inscricao.status]}`}
@@ -350,7 +354,7 @@ export default function InscricoesPage() {
         title="Excluir inscrição"
         description={
           inscricaoParaExcluir
-            ? `Tem certeza que deseja excluir a inscrição de "${inscricaoParaExcluir.atletaNome}"? Essa ação não pode ser desfeita.`
+            ? `Tem certeza que deseja excluir a inscrição de "${nomeDaInscricao(inscricaoParaExcluir)}"? Essa ação não pode ser desfeita.`
             : undefined
         }
         confirmLabel="Excluir"
