@@ -115,51 +115,6 @@ type FuncionariosContextValue = {
 
 const FuncionariosContext = createContext<FuncionariosContextValue | null>(null);
 
-const FUNCIONARIOS_INICIAIS: Funcionario[] = [
-  {
-    // Host de demonstração: acesso a todos os módulos. Também tem perfil
-    // de atleta/responsável (perfis-store) para testar o Portal.
-    id: "host",
-    nome: "Agatha Tanat",
-    email: "tiaagathanat@gmail.com",
-    telefone: "(11) 97777-0000",
-    papel: "administrador",
-    organizacaoId: "1",
-    ativo: true,
-    permissoes: PERMISSOES_POR_PAPEL.administrador,
-  },
-  {
-    id: "1",
-    nome: "Ricardo Almeida",
-    email: "ricardo.almeida@exemplo.com",
-    telefone: "(11) 98888-0001",
-    papel: "organizador",
-    organizacaoId: "1",
-    ativo: true,
-    permissoes: PERMISSOES_POR_PAPEL.organizador,
-  },
-  {
-    id: "2",
-    nome: "Fernanda Souza",
-    email: "fernanda.souza@exemplo.com",
-    telefone: "(11) 98888-0002",
-    papel: "cronometragem",
-    organizacaoId: "1",
-    ativo: true,
-    permissoes: PERMISSOES_POR_PAPEL.cronometragem,
-  },
-  {
-    id: "3",
-    nome: "Marcos Oliveira",
-    email: "marcos.oliveira@exemplo.com",
-    telefone: "(11) 98888-0003",
-    papel: "financeiro",
-    organizacaoId: "1",
-    ativo: false,
-    permissoes: PERMISSOES_POR_PAPEL.financeiro,
-  },
-];
-
 function gerarId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -172,7 +127,7 @@ export function FuncionariosProvider({ children }: { children: ReactNode }) {
     erro,
   } = usePersistencia<Funcionario>(
     "app_funcionarios",
-    FUNCIONARIOS_INICIAIS,
+    [],
     { ordem: "id" }
   );
 

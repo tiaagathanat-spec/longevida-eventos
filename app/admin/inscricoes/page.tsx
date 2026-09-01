@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState, FormEvent } from "react";
-import { Plus, Pencil, Trash2, Check, X, ClipboardList } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X, ClipboardList, Users } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useInscricoes, Inscricao, InscricaoStatus, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
+import { useTiposProva, integrantesDaProva, eProvaEmEquipe } from "@/lib/mock/tipos-prova-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -18,6 +19,9 @@ import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 type FormState = {
   atletaId: string; // "" ou "manual" quando não vinculado a um cadastro
   atletaNomeManual: string;
+  atletaNome2: string;
+  atletaNome3: string;
+  atletaNome4: string;
   eventoId: string;
   provaId: string;
   status: InscricaoStatus;
@@ -42,6 +46,7 @@ export default function InscricoesPage() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
+  const { tiposProva } = useTiposProva();
   const { atletas, erro: erroAtletas } = useAtletas();
   const { inscricoes, criar, atualizar, alterarStatus, excluir, erro: erroInscricoes } =
     useInscricoes();
@@ -56,6 +61,9 @@ export default function InscricoesPage() {
     provaId: "",
     atletaId: atletas[0]?.id ?? OPCAO_MANUAL,
     atletaNomeManual: "",
+    atletaNome2: "",
+    atletaNome3: "",
+    atletaNome4: "",
     status: "pendente",
   });
   const [erros, setErros] = useState<Record<string, string>>({});
@@ -83,6 +91,17 @@ export default function InscricoesPage() {
 
   const provasDoEventoSelecionado = provas.filter((p) => p.eventoId === form.eventoId);
 
+  function qtdIntegrantesProva(provaId: string): number {
+    const prova = provas.find((p) => p.id === provaId);
+    const tipo = tiposProva.find((t) => t.id === prova?.tipoProvaId);
+    return integrantesDaProva(tipo);
+  }
+
+  function nomeIntegrante(inputIndex: number, totalIntegrantes: number) {
+    if (totalIntegrantes <= 1) return undefined;
+    return `Integrante ${inputIndex + 2}`;
+  }
+
   function abrirCriacao() {
     setEditandoId(null);
     const eventoId = eventos[0]?.id ?? "";
@@ -91,6 +110,9 @@ export default function InscricoesPage() {
       provaId: provas.find((p) => p.eventoId === eventoId)?.id ?? "",
       atletaId: atletas[0]?.id ?? OPCAO_MANUAL,
       atletaNomeManual: "",
+      atletaNome2: "",
+      atletaNome3: "",
+      atletaNome4: "",
       status: "pendente",
     });
     setErros({});
@@ -105,6 +127,9 @@ export default function InscricoesPage() {
       provaId: inscricao.provaId,
       atletaId: atletaCorrespondente?.id ?? OPCAO_MANUAL,
       atletaNomeManual: atletaCorrespondente ? "" : inscricao.atletaNome,
+      atletaNome2: inscricao.atletaNome2 ?? "",
+      atletaNome3: inscricao.atletaNome3 ?? "",
+      atletaNome4: inscricao.atletaNome4 ?? "",
       status: inscricao.status,
     });
     setErros({});
@@ -135,6 +160,9 @@ export default function InscricoesPage() {
       eventoId: form.eventoId,
       provaId: form.provaId,
       atletaNome,
+      atletaNome2: form.atletaNome2.trim() || undefined,
+      atletaNome3: form.atletaNome3.trim() || undefined,
+      atletaNome4: form.atletaNome4.trim() || undefined,
       status: form.status,
     };
 
@@ -302,7 +330,14 @@ export default function InscricoesPage() {
             onChange={(e) => {
               const eventoId = e.target.value;
               const primeiraProva = provas.find((p) => p.eventoId === eventoId)?.id ?? "";
-              setForm({ ...form, eventoId, provaId: primeiraProva });
+              setForm({
+                ...form,
+                eventoId,
+                provaId: primeiraProva,
+                atletaNome2: "",
+                atletaNome3: "",
+                atletaNome4: "",
+              });
             }}
             error={erros.eventoId}
           >
@@ -317,7 +352,15 @@ export default function InscricoesPage() {
             id="provaId"
             label="Prova"
             value={form.provaId}
-            onChange={(e) => setForm({ ...form, provaId: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                provaId: e.target.value,
+                atletaNome2: "",
+                atletaNome3: "",
+                atletaNome4: "",
+              })
+            }
             error={erros.provaId}
             disabled={provasDoEventoSelecionado.length === 0}
           >
@@ -328,6 +371,38 @@ export default function InscricoesPage() {
               </option>
             ))}
           </Select>
+
+          {(() => {
+            const n = qtdIntegrantesProva(form.provaId);
+            if (n <= 1) return null;
+            const campos: { chave: "atletaNome2" | "atletaNome3" | "atletaNome4"; rotulo: string }[] = [];
+            for (let i = 2; i <= Math.min(n, 4); i++) {
+              campos.push({
+                chave: (`atletaNome${i}`) as "atletaNome2" | "atletaNome3" | "atletaNome4",
+                rotulo: `${i}º integrante`,
+              });
+            }
+            return (
+              <div className="rounded-xl border border-brand-blue/30 bg-brand-blue/5 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-200">
+                  <Users className="h-3.5 w-3.5 text-brand-blue" />
+                  Prova em equipe ({n} integrantes)
+                </p>
+                <div className="mt-3 flex flex-col gap-3">
+                  {campos.map((c) => (
+                    <Input
+                      key={c.chave}
+                      id={c.chave}
+                      label={c.rotulo}
+                      placeholder="Nome completo"
+                      value={form[c.chave]}
+                      onChange={(e) => setForm({ ...form, [c.chave]: e.target.value })}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           <Select
             id="status"

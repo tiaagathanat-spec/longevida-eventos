@@ -22,10 +22,13 @@ export type Inscricao = {
   status: InscricaoStatus;
   dataInscricao: string; // ISO date
   numeroPeito?: string; // usado no módulo Financeiro; opcional, não afeta telas existentes
-  // Inscrição em DUPLA: atletaNome é o participante principal (dono da
-  // inscrição); atletaNome2 é o segundo participante. Persistido em
-  // app_inscricoes.atleta_nome_2 (migration 0013).
+  // Inscrição em EQUIPE (dupla, trio, quarteto...): atletaNome é o
+  // participante principal (dono da inscrição); atletaNome2, atletaNome3
+  // e atletaNome4 são os demais integrantes (até 4 no total). Persistidos
+  // em app_inscricoes.atleta_nome_2/3/4 (migrations 0013 e 0017).
   atletaNome2?: string;
+  atletaNome3?: string;
+  atletaNome4?: string;
 };
 
 export { nomeDaInscricao } from "./inscricoes-utils";
@@ -43,34 +46,6 @@ type InscricoesContextValue = {
 
 const InscricoesContext = createContext<InscricoesContextValue | null>(null);
 
-// Inscrições iniciais associadas às provas semeadas em provas-store.
-const INSCRICOES_INICIAIS: Inscricao[] = [
-  {
-    id: "1",
-    eventoId: "1",
-    provaId: "1",
-    atletaNome: "Marina Costa",
-    status: "confirmada",
-    dataInscricao: "2026-07-10",
-  },
-  {
-    id: "2",
-    eventoId: "1",
-    provaId: "2",
-    atletaNome: "Beatriz Lima",
-    status: "confirmada",
-    dataInscricao: "2026-07-12",
-  },
-  {
-    id: "3",
-    eventoId: "1",
-    provaId: "2",
-    atletaNome: "Rafael Andrade",
-    status: "pendente",
-    dataInscricao: "2026-07-20",
-  },
-];
-
 function gerarId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -83,7 +58,7 @@ export function InscricoesProvider({ children }: { children: ReactNode }) {
     erro,
   } = usePersistencia<Inscricao>(
     "app_inscricoes",
-    INSCRICOES_INICIAIS,
+    [],
     { ordem: "id" }
   );
 

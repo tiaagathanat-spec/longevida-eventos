@@ -2,16 +2,20 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ClipboardList, QrCode } from "lucide-react";
+import { ClipboardList, QrCode, Users, Pencil } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
-import { useInscricoes, InscricaoStatus, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, Inscricao, InscricaoStatus, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
+import { useTiposProva, integrantesDaProva } from "@/lib/mock/tipos-prova-store";
 import { useSessao } from "@/lib/mock/sessao";
 import { useQrDaInscricao } from "@/lib/mock/qrcodes-store";
 import { ModalQrInscricao } from "@/components/qrcode/modal-qr-inscricao";
+import { Modal } from "@/components/ui/modal";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 
 const STATUS_LABEL: Record<InscricaoStatus, string> = {
@@ -32,9 +36,16 @@ export default function MinhasInscricoesPage() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
+  const { tiposProva } = useTiposProva();
   const { atletas } = useAtletas();
-  const { inscricoes, erro: erroInscricoes } = useInscricoes();
+  const { inscricoes, atualizar, erro: erroInscricoes } = useInscricoes();
   const [inscricaoQrId, setInscricaoQrId] = useState<string | null>(null);
+
+  // Edição da equipe de uma inscrição (2º, 3º... integrantes).
+  const [editandoEquipeId, setEditandoEquipeId] = useState<string | null>(null);
+  const [editandoEquipeNomes, setEditandoEquipeNomes] = useState<string[]>([]);
+
+  const inscricaoEmEdicao = inscricoes.find((i) => i.id === editandoEquipeId);
 
   const inscricaoComQr = inscricoes.find((i) => i.id === inscricaoQrId);
   const qrDaInscricao = useQrDaInscricao(inscricaoQrId ?? "");
@@ -63,6 +74,34 @@ export default function MinhasInscricoesPage() {
     const modalidade = modalidades.find((m) => m.id === prova.modalidadeId)?.nome ?? "—";
     const categoria = categorias.find((c) => c.id === prova.categoriaId)?.nome ?? "—";
     return `${modalidade} · ${categoria}`;
+  }
+
+  function integrantesDe(inscricao: Inscricao): number {
+    const prova = provas.find((p) => p.id === inscricao.provaId);
+    const tipo = tiposProva.find((t) => t.id === prova?.tipoProvaId);
+    return integrantesDaProva(tipo);
+  }
+
+  function abrirEdicaoEquipe(inscricao: Inscricao) {
+    const n = integrantesDe(inscricao);
+    const nomes = Array.from({ length: Math.max(0, n - 1) }, () => "");
+    nomes[0] = inscricao.atletaNome2 ?? "";
+    nomes[1] = inscricao.atletaNome3 ?? "";
+    nomes[2] = inscricao.atletaNome4 ?? "";
+    setEditandoEquipeId(inscricao.id);
+    setEditandoEquipeNomes(nomes);
+  }
+
+  function salvarEquipe() {
+    if (!editandoEquipeId) return;
+    const limpos = editandoEquipeNomes.map((nome) => nome.trim());
+    if (limpos.some((nome) => !nome)) return;
+    atualizar(editandoEquipeId, {
+      atletaNome2: limpos[0] || undefined,
+      atletaNome3: limpos[1] || undefined,
+      atletaNome4: limpos[2] || undefined,
+    });
+    setEditandoEquipeId(null);
   }
 
   return (
@@ -114,6 +153,18 @@ export default function MinhasInscricoesPage() {
                 >
                   {STATUS_LABEL[inscricao.status]}
                 </span>
+                {inscricao.status !== "cancelada" && integrantesDe(inscricao) > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => abrirEdicaoEquipe(inscricao)}
+                    title="Editar integrantes da equipe"
+                    className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    <Pencil className="h-3 w-3" />
+                    Equipe
+                  </button>
+                )}
                 {inscricao.status === "confirmada" && (
                   <button
                     type="button"
@@ -147,6 +198,48 @@ export default function MinhasInscricoesPage() {
           identificador={qrDaInscricao.identificador}
           subtitulo={`${nomeDaInscricao(inscricaoComQr)} · ${nomeEvento(inscricaoComQr.eventoId)} · ${descricaoProva(inscricaoComQr.provaId)}`}
         />
+      )}
+      {inscricaoEmEdicao && (
+        <Modal
+          open
+          title={`Editar equipe`}
+          onClose={() => setEditandoEquipeId(null)}
+        >
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Atualize os nomes dos integrantes da equipe de{" "}
+            <span className="font-semibold text-slate-700 dark:text-slate-200">
+              {nomeDaInscricao(inscricaoEmEdicao)}
+            </span>{" "}
+            ({integrantesDe(inscricaoEmEdicao)} no total).
+          </p>
+          <div className="mt-4 flex flex-col gap-3">
+            {editandoEquipeNomes.map((nome, idx) => (
+              <Input
+                key={idx}
+                id={`editEquipe-${idx + 2}`}
+                label={`${idx + 2}º integrante`}
+                placeholder="Nome completo"
+                value={nome}
+                onChange={(e) =>
+                  setEditandoEquipeNomes((atual) =>
+                    atual.map((n, i) => (i === idx ? e.target.value : n))
+                  )
+                }
+              />
+            ))}
+          </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setEditandoEquipeId(null)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={salvarEquipe}
+              disabled={editandoEquipeNomes.some((nome) => !nome.trim())}
+            >
+              Salvar
+            </Button>
+          </div>
+        </Modal>
       )}
     </div>
   );

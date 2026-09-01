@@ -13,10 +13,11 @@ import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 type FormState = {
   nome: string;
   permiteEquipe: boolean;
+  integrantes: number;
   descricao: string;
 };
 
-const FORM_VAZIO: FormState = { nome: "", permiteEquipe: false, descricao: "" };
+const FORM_VAZIO: FormState = { nome: "", permiteEquipe: false, integrantes: 1, descricao: "" };
 
 export default function TiposProvaPage() {
   const { tiposProva, criar, atualizar, excluir, erro: erroTiposProva } = useTiposProva();
@@ -44,6 +45,7 @@ export default function TiposProvaPage() {
     setForm({
       nome: tipo.nome,
       permiteEquipe: tipo.permiteEquipe,
+      integrantes: tipo.integrantes,
       descricao: tipo.descricao,
     });
     setErros({});
@@ -65,6 +67,7 @@ export default function TiposProvaPage() {
     const dados = {
       nome: form.nome.trim(),
       permiteEquipe: form.permiteEquipe,
+      integrantes: form.permiteEquipe ? Math.max(2, Math.min(4, form.integrantes || 2)) : 1,
       descricao: form.descricao.trim(),
     };
 
@@ -132,7 +135,7 @@ export default function TiposProvaPage() {
                     {tipo.permiteEquipe && (
                       <span className="flex items-center gap-1 rounded-full bg-brand-green/10 px-2 py-0.5 text-[11px] font-medium text-brand-green">
                         <Users2 className="h-3 w-3" />
-                        Por equipe
+                        Equipe de {tipo.integrantes}
                       </span>
                     )}
                   </div>
@@ -183,11 +186,32 @@ export default function TiposProvaPage() {
             <input
               type="checkbox"
               checked={form.permiteEquipe}
-              onChange={(e) => setForm({ ...form, permiteEquipe: e.target.checked })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  permiteEquipe: e.target.checked,
+                  integrantes: e.target.checked ? 2 : 1,
+                })
+              }
               className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue/30"
             />
             Disputada por equipe (ex: revezamento)
           </label>
+
+          {form.permiteEquipe && (
+            <Input
+              id="integrantes"
+              type="number"
+              min={2}
+              max={4}
+              label="Integrantes por equipe"
+              helper="Quantos participantes cada equipe tem (ex.: dupla = 2, quarteto = 4)."
+              value={String(form.integrantes)}
+              onChange={(e) =>
+                setForm({ ...form, integrantes: parseInt(e.target.value, 10) || 2 })
+              }
+            />
+          )}
 
           <Textarea
             id="descricao"

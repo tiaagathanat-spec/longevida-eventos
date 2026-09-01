@@ -28,46 +28,6 @@ type CategoriasContextValue = {
 
 const CategoriasContext = createContext<CategoriasContextValue | null>(null);
 
-// Categorias iniciais. Os IDs numéricos são referenciados por atletas,
-// provas e faixas de numeração.
-const CATEGORIAS_INICIAIS: Categoria[] = [
-  {
-    id: "1",
-    nome: "Infantil A",
-    idadeMinima: 8,
-    idadeMaxima: 10,
-    descricao: "Atletas de 8 a 10 anos.",
-  },
-  {
-    id: "2",
-    nome: "Infantil B",
-    idadeMinima: 11,
-    idadeMaxima: 12,
-    descricao: "Atletas de 11 a 12 anos.",
-  },
-  {
-    id: "3",
-    nome: "Juvenil",
-    idadeMinima: 13,
-    idadeMaxima: 17,
-    descricao: "Atletas de 13 a 17 anos.",
-  },
-  {
-    id: "4",
-    nome: "Adulto",
-    idadeMinima: 18,
-    idadeMaxima: 34,
-    descricao: "Atletas de 18 a 34 anos.",
-  },
-  {
-    id: "5",
-    nome: "Master",
-    idadeMinima: 35,
-    idadeMaxima: null,
-    descricao: "Atletas a partir de 35 anos.",
-  },
-];
-
 function gerarId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -80,7 +40,7 @@ export function CategoriasProvider({ children }: { children: ReactNode }) {
     erro,
   } = usePersistencia<Categoria>(
     "app_categorias",
-    CATEGORIAS_INICIAIS,
+    [],
     { ordem: "id" }
   );
 

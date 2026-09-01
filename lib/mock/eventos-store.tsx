@@ -108,61 +108,6 @@ type EventosContextValue = {
 
 const EventosContext = createContext<EventosContextValue | null>(null);
 
-// Eventos iniciais. Os IDs numéricos ("1", "2", "3") são referenciados
-// pelos demais stores (provas, inscrições, faixas de numeração etc.).
-const EVENTOS_INICIAIS: Evento[] = [
-  {
-    id: "1",
-    nome: "Copa Longevida de Natação",
-    descricao:
-      "Etapa de abertura da temporada com provas de todas as modalidades.",
-    data: "2026-09-20",
-    local: "Espaço Longevida — Piscina Olímpica",
-    status: "inscricoes_abertas",
-    dataLimiteInscricoes: "2026-09-10",
-    vagas: 100,
-    enderecoRua: "Av. das Nações Unidas",
-    enderecoQuadra: "12",
-    enderecoLote: "8",
-    enderecoSetor: "Central",
-    enderecoCep: "04578-000",
-    enderecoCidade: "São Paulo",
-    enderecoEstado: "SP",
-  },
-  {
-    id: "2",
-    nome: "Travessia Aberta Longevida",
-    descricao: "Travessia em águas abertas para todas as categorias.",
-    data: "2026-10-18",
-    local: "Represa do Guarapiranga",
-    status: "em_espera",
-    dataLimiteInscricoes: "2026-10-05",
-    vagas: null,
-    enderecoRua: "Estrada da Represa",
-    enderecoSetor: "Parque",
-    enderecoCep: "04914-000",
-    enderecoCidade: "São Paulo",
-    enderecoEstado: "SP",
-  },
-  {
-    id: "3",
-    nome: "Desafio Master 30+",
-    descricao: "Evento exclusivo para atletas das categorias Master.",
-    data: "2026-11-22",
-    local: "Espaço Longevida — Piscina Olímpica",
-    status: "rascunho",
-    dataLimiteInscricoes: "",
-    vagas: 50,
-    enderecoRua: "Av. das Nações Unidas",
-    enderecoQuadra: "12",
-    enderecoLote: "8",
-    enderecoSetor: "Central",
-    enderecoCep: "04578-000",
-    enderecoCidade: "São Paulo",
-    enderecoEstado: "SP",
-  },
-];
-
 /** Endereço do evento formatado a partir dos campos estruturados (vazio se não preenchido). */
 export function enderecoFormatado(evento: Evento): string {
   const endereco = [
@@ -199,7 +144,7 @@ export function EventosProvider({ children }: { children: ReactNode }) {
     erro,
   } = usePersistencia<Evento>(
     "app_eventos",
-    EVENTOS_INICIAIS,
+    [],
     { ordem: "id" }
   );
 

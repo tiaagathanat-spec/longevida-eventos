@@ -11,6 +11,11 @@ export type TipoProva = {
   id: string;
   nome: string;
   permiteEquipe: boolean;
+  // Quantos participantes cada formação exige (1 = individual; 2 =
+  // dupla; 4 = quartetos, etc.). Usado pelas telas de inscrição para
+  // saber quantos integrantes coletar. Persistido em
+  // app_tipos_prova.integrantes (migration 0017).
+  integrantes: number;
   descricao: string;
 };
 
@@ -27,34 +32,28 @@ type TiposProvaContextValue = {
 
 const TiposProvaContext = createContext<TiposProvaContextValue | null>(null);
 
-// Tipos de prova iniciais. O ID "1" (Individual) é referenciado pelas
-// provas semeadas em provas-store.
-const TIPOS_PROVA_INICIAIS: TipoProva[] = [
-  {
-    id: "1",
-    nome: "Individual",
-    permiteEquipe: false,
-    descricao: "Prova disputada individualmente por atleta.",
-  },
-  {
-    id: "2",
-    nome: "Revezamento",
-    permiteEquipe: true,
-    descricao: "Prova disputada em equipes de revezamento.",
-  },
-  {
-    id: "dupla",
-    nome: "Dupla",
-    permiteEquipe: true,
-    descricao: "Prova disputada em duplas (2 participantes por inscrição).",
-  },
-];
-
 // Um tipo de prova é de DUPLA pelo nome "Dupla" (id "dupla"). Usado pelas
 // telas de inscrição: não checamos permiteEquipe, pois "Revezamento"
 // também tem permiteEquipe = true.
 export function eTipoDupla(tipoProva: Pick<TipoProva, "nome"> | undefined) {
   return tipoProva?.nome.toLowerCase() === "dupla";
+}
+
+// Quantos participantes a prova exige (1 = individual, 2 = dupla,
+// 4 = quarteto...). Deriva do campo `integrantes` do tipo de prova;
+// ausente/zerado vira 1.
+export function integrantesDaProva(
+  tipoProva: Pick<TipoProva, "integrantes"> | undefined
+): number {
+  const n = tipoProva?.integrantes ?? 0;
+  return n >= 1 ? n : 1;
+}
+
+// A prova é disputada em equipe (2 ou mais integrantes)?
+export function eProvaEmEquipe(
+  tipoProva: Pick<TipoProva, "permiteEquipe" | "integrantes"> | undefined
+): boolean {
+  return integrantesDaProva(tipoProva) > 1;
 }
 
 function gerarId() {
@@ -69,7 +68,7 @@ export function TiposProvaProvider({ children }: { children: ReactNode }) {
     erro,
   } = usePersistencia<TipoProva>(
     "app_tipos_prova",
-    TIPOS_PROVA_INICIAIS,
+    [],
     { ordem: "id" }
   );
 

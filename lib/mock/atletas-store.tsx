@@ -46,65 +46,6 @@ type AtletasContextValue = {
 
 const AtletasContext = createContext<AtletasContextValue | null>(null);
 
-const ATLETAS_INICIAIS: Atleta[] = [
-  {
-    id: "1",
-    nome: "Marina Costa",
-    dataNascimento: "2013-04-12",
-    categoriaId: "1",
-    responsavelNome: "Cláudia Costa",
-    email: "claudia.costa@exemplo.com",
-    telefone: "(11) 98888-1234",
-  },
-  {
-    id: "2",
-    nome: "Beatriz Lima",
-    dataNascimento: "2011-09-02",
-    categoriaId: "3",
-    responsavelNome: "Cláudia Costa",
-    email: "claudia.costa@exemplo.com",
-    telefone: "(11) 97777-5678",
-  },
-  {
-    id: "3",
-    nome: "João Pedro Santos",
-    dataNascimento: "1994-01-20",
-    categoriaId: "4",
-    responsavelNome: "",
-    email: "joaopedro@exemplo.com",
-    telefone: "(11) 96666-9012",
-  },
-  {
-    id: "4",
-    nome: "Rafael Andrade",
-    dataNascimento: "2012-05-30",
-    categoriaId: "3",
-    responsavelNome: "Cláudia Costa",
-    email: "claudia.costa@exemplo.com",
-    telefone: "(11) 95555-3456",
-  },
-  {
-    // Atletas vinculados ao host de demonstração (Agatha Tanat), para
-    // testar inscrições no Portal do Atleta.
-    id: "5",
-    nome: "Ana Tanat",
-    dataNascimento: "2014-02-10",
-    categoriaId: "1",
-    responsavelNome: "Agatha Tanat",
-    email: "tiaagathanat@gmail.com",
-    telefone: "(11) 97777-0000",
-  },
-  {
-    id: "6",
-    nome: "Miguel Tanat",
-    dataNascimento: "2012-08-25",
-    categoriaId: "3",
-    responsavelNome: "Agatha Tanat",
-    email: "tiaagathanat@gmail.com",
-    telefone: "(11) 97777-0000",
-  },
-];
-
 function gerarId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -117,7 +58,7 @@ export function AtletasProvider({ children }: { children: ReactNode }) {
     erro,
   } = usePersistencia<Atleta>(
     "app_atletas",
-    ATLETAS_INICIAIS,
+    [],
     { ordem: "id" }
   );
 

@@ -228,8 +228,7 @@ export function CronometragemClient() {
     const viaQr = qrCodes.find((x) => x.identificador.toLowerCase() === q);
     return atletasDaProva.filter((ins) => {
       if (viaQr && viaQr.inscricaoId === ins.id) return true;
-      if (ins.atletaNome.toLowerCase().includes(q)) return true;
-      if (ins.atletaNome2 && ins.atletaNome2.toLowerCase().includes(q)) return true;
+      if (nomeDaInscricao(ins).toLowerCase().includes(q)) return true;
       if (ins.numeroPeito && ins.numeroPeito.trim().toLowerCase() === q) return true;
       const dorsal = obterDorsal(ins.id);
       if (dorsal && String(dorsal.numero).toLowerCase() === q) return true;

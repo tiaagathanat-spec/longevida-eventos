@@ -8,7 +8,7 @@ import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas, situacaoDaProva, SITUACAO_PROVA_LABEL, SITUACAO_PROVA_CLASSE } from "@/lib/mock/provas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { useDorsais, obterUltimaAuditoria } from "@/lib/mock/dorsais-store";
@@ -60,7 +60,10 @@ export default function OrganizacaoInscritosPage() {
         return { inscricao, prova, grupo, dorsal, resultado };
       })
       .filter((l) => (provaId === "todas" ? true : l.inscricao.provaId === provaId))
-      .filter((l) => l.inscricao.atletaNome.toLowerCase().includes(busca.trim().toLowerCase()))
+      .filter((l) => {
+        const q = busca.trim().toLowerCase();
+        return q === "" || nomeDaInscricao(l.inscricao).toLowerCase().includes(q);
+      })
       .sort((a, b) => (a.dorsal?.numero ?? 9999) - (b.dorsal?.numero ?? 9999));
   }, [
     inscricoes,
@@ -202,7 +205,13 @@ export default function OrganizacaoInscritosPage() {
                     {dorsal ? String(dorsal.numero).padStart(3, "0") : "—"}
                   </td>
                   <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
-                    {inscricao.atletaNome}
+                    {nomeDaInscricao(inscricao)}
+                    {inscricao.atletaNome2 && (
+                      <span className="ml-2 inline-flex items-center rounded-full bg-brand-blue/10 px-2 py-0.5 text-[10px] font-medium text-brand-blue">
+                        <Users className="mr-1 h-3 w-3" />
+                        Equipe
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                     {prova

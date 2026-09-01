@@ -30,6 +30,8 @@ type ResumoInscricao = {
   inscricaoId: string;
   atletaNome: string;
   atletaNome2?: string;
+  atletaNome3?: string;
+  atletaNome4?: string;
   provaNome: string;
   eventoNome: string;
   numeroPeito: string | null;
@@ -136,6 +138,8 @@ export default function OrganizacaoLeitorQrPage() {
       inscricaoId: inscricao.id,
       atletaNome: inscricao.atletaNome,
       atletaNome2: inscricao.atletaNome2,
+      atletaNome3: inscricao.atletaNome3,
+      atletaNome4: inscricao.atletaNome4,
       provaNome: prova
         ? `${nomeModalidade(prova.modalidadeId)} · ${nomeCategoria(prova.categoriaId)}`
         : "—",

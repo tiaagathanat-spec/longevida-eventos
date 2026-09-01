@@ -8,7 +8,11 @@ import { useEventos, inscricoesEstaoAbertas } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
-import { useTiposProva, eTipoDupla } from "@/lib/mock/tipos-prova-store";
+import {
+  useTiposProva,
+  integrantesDaProva,
+  eProvaEmEquipe,
+} from "@/lib/mock/tipos-prova-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useSessao } from "@/lib/mock/sessao";
@@ -63,7 +67,9 @@ export default function InscricaoPage() {
 
   const [atletaId, setAtletaId] = useState(meusAtletas[0]?.id ?? "");
   const [provaId, setProvaId] = useState("");
-  const [parceiroNome, setParceiroNome] = useState("");
+  // Nomes dos demais integrantes da equipe (2º, 3º...). Um por input;
+  // o número depende do tipo de prova (integrantes - 1).
+  const [parceiros, setParceiros] = useState<string[]>([]);
   const [erroParceiro, setErroParceiro] = useState(false);
   const [copiadoPix, setCopiadoPix] = useState(false);
   const [termos, setTermos] = useState({
@@ -161,13 +167,15 @@ export default function InscricaoPage() {
 
   const provaSelecionada = provasDisponiveis.find((p) => p.id === provaId);
   const tipoProvaDaProva = tiposProva.find((t) => t.id === provaSelecionada?.tipoProvaId);
-  const eDupla = eTipoDupla(tipoProvaDaProva);
+  const integrantesProva = integrantesDaProva(tipoProvaDaProva);
+  const eEquipe = eProvaEmEquipe(tipoProvaDaProva);
 
-  // Prova nova selecionada: limpa o nome do 2º participante da dupla.
+  // Prova nova selecionada: reinicia a lista de integrantes da equipe
+  // (tamanho = integrantes - 1).
   useEffect(() => {
-    setParceiroNome("");
+    setParceiros(Array.from({ length: integrantesProva - 1 }, () => ""));
     setErroParceiro(false);
-  }, [provaId]);
+  }, [provaId, integrantesProva]);
 
   function formatarMoeda(valor: number) {
     return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -227,8 +235,8 @@ export default function InscricaoPage() {
     }
     setErroTermos(false);
 
-    // Prova em dupla: exige o nome do 2º participante.
-    if (eDupla && !parceiroNome.trim()) {
+    // Prova em equipe: exige o nome de todos os integrantes.
+    if (eEquipe && parceiros.some((p) => !p.trim())) {
       setErroParceiro(true);
       return;
     }
@@ -263,12 +271,15 @@ export default function InscricaoPage() {
     // Não cria duplicata se o atleta já estiver inscrito na prova —
     // apenas segue para o pagamento.
     if (!jaInscrito(atleta.nome, provaId)) {
+      const nomes = parceiros.map((p) => p.trim());
       criar({
         eventoId,
         provaId,
         atletaNome: atleta.nome,
         status: "pendente",
-        atletaNome2: eDupla ? parceiroNome.trim() : undefined,
+        atletaNome2: nomes[0] || undefined,
+        atletaNome3: nomes[1] || undefined,
+        atletaNome4: nomes[2] || undefined,
       });
     }
 
@@ -464,7 +475,7 @@ export default function InscricaoPage() {
                 ))}
               </Select>
 
-              {eDupla && (
+              {eEquipe && (
                 <div className="rounded-2xl border border-brand-blue/30 bg-brand-blue/5 p-4">
                   <div className="flex items-start gap-3">
                     <div className="rounded-xl bg-brand-blue/10 p-2">
@@ -472,21 +483,32 @@ export default function InscricaoPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                        Prova em dupla
+                        Prova em equipe ({integrantesProva} integrantes)
                       </p>
                       <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                        Informe o nome do segundo participante. O valor da inscrição cobre a
-                        dupla completa.
+                        Informe os nomes dos demais integrantes da equipe. O valor da inscrição
+                        cobre a equipe completa.
                       </p>
-                      <div className="mt-3">
-                        <Input
-                          id="parceiroNome"
-                          label="2º participante (dupla)"
-                          placeholder="Nome completo do parceiro(a)"
-                          value={parceiroNome}
-                          onChange={(e) => setParceiroNome(e.target.value)}
-                          error={erroParceiro ? "Informe o nome do 2º participante." : undefined}
-                        />
+                      <div className="mt-3 flex flex-col gap-3">
+                        {parceiros.map((nome, idx) => (
+                          <Input
+                            key={idx}
+                            id={`parceiro-${idx + 2}`}
+                            label={`${idx + 2}º integrante`}
+                            placeholder="Nome completo"
+                            value={nome}
+                            onChange={(e) =>
+                              setParceiros((atual) =>
+                                atual.map((n, i) => (i === idx ? e.target.value : n))
+                              )
+                            }
+                            error={
+                              erroParceiro && !nome.trim()
+                                ? `Informe o nome do ${idx + 2}º integrante.`
+                                : undefined
+                            }
+                          />
+                        ))}
                       </div>
                     </div>
                   </div>

@@ -39,6 +39,8 @@ type EtapaJornada = {
   inscricaoId: string;
   atletaNome: string;
   atletaNome2?: string;
+  atletaNome3?: string;
+  atletaNome4?: string;
   eventoId: string;
   eventoNome: string;
   eventoData: string;
@@ -134,6 +136,8 @@ export default function MinhaJornadaPage() {
         inscricaoId: inscricao.id,
         atletaNome: inscricao.atletaNome,
         atletaNome2: inscricao.atletaNome2,
+        atletaNome3: inscricao.atletaNome3,
+        atletaNome4: inscricao.atletaNome4,
         eventoId: evento!.id,
         eventoNome: evento!.nome,
         eventoData: evento!.data,
@@ -170,6 +174,8 @@ export default function MinhaJornadaPage() {
             inscricaoId: inscricao.id,
             atletaNome: inscricao.atletaNome,
             atletaNome2: inscricao.atletaNome2,
+            atletaNome3: inscricao.atletaNome3,
+            atletaNome4: inscricao.atletaNome4,
             eventoId: inscricao.eventoId,
             eventoNome: evento?.nome ?? "—",
             eventoData: evento?.data ?? "",

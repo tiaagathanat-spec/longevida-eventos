@@ -39,40 +39,6 @@ type PerfisContextValue = {
 
 const PerfisContext = createContext<PerfisContextValue | null>(null);
 
-const PERFIS_INICIAIS: Perfil[] = [
-  {
-    // Host de demonstração: mesmo e-mail do login, com perfil de
-    // responsável para testar o Portal do Atleta (meus atletas,
-    // inscrições, resultados).
-    id: "host",
-    tipoConta: "responsavel",
-    nome: "Agatha Tanat",
-    email: "tiaagathanat@gmail.com",
-    dataNascimento: "1990-05-20",
-    genero: "feminino",
-    cpf: "321.654.987-00",
-    telefone: "(11) 97777-0000",
-    endereco: "Av. das Nações, 500 — São Paulo/SP",
-    contatoEmergenciaNome: "Felipe Tanat",
-    contatoEmergenciaTelefone: "(11) 96666-0000",
-    observacoesSaude: "Sem restrições.",
-  },
-  {
-    id: "1",
-    tipoConta: "responsavel",
-    nome: "Cláudia Costa",
-    email: "claudia.costa@exemplo.com",
-    dataNascimento: "1985-06-14",
-    genero: "feminino",
-    cpf: "123.456.789-00",
-    telefone: "(11) 98888-1234",
-    endereco: "Rua das Flores, 123 — São Paulo/SP",
-    contatoEmergenciaNome: "Ricardo Costa",
-    contatoEmergenciaTelefone: "(11) 97777-0001",
-    observacoesSaude: "Sem restrições.",
-  },
-];
-
 export function PerfisProvider({ children }: { children: ReactNode }) {
   const {
     dados: perfis,
@@ -81,7 +47,7 @@ export function PerfisProvider({ children }: { children: ReactNode }) {
     erro,
   } = usePersistencia<Perfil>(
     "app_perfis",
-    PERFIS_INICIAIS,
+    [],
     { ordem: "id" }
   );
 

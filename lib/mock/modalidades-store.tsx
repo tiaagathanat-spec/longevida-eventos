@@ -30,38 +30,6 @@ type ModalidadesContextValue = {
 
 const ModalidadesContext = createContext<ModalidadesContextValue | null>(null);
 
-// Modalidades iniciais. Os IDs numéricos são referenciados pelas provas.
-const MODALIDADES_INICIAIS: Modalidade[] = [
-  {
-    id: "1",
-    nome: "50m Livre",
-    estilo: "livre",
-    distanciaMetros: 50,
-    descricao: "Natação 50 metros estilo livre.",
-  },
-  {
-    id: "2",
-    nome: "100m Costas",
-    estilo: "costas",
-    distanciaMetros: 100,
-    descricao: "Natação 100 metros costas.",
-  },
-  {
-    id: "3",
-    nome: "100m Peito",
-    estilo: "peito",
-    distanciaMetros: 100,
-    descricao: "Natação 100 metros peito.",
-  },
-  {
-    id: "4",
-    nome: "100m Borboleta",
-    estilo: "borboleta",
-    distanciaMetros: 100,
-    descricao: "Natação 100 metros borboleta.",
-  },
-];
-
 function gerarId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -74,7 +42,7 @@ export function ModalidadesProvider({ children }: { children: ReactNode }) {
     erro,
   } = usePersistencia<Modalidade>(
     "app_modalidades",
-    MODALIDADES_INICIAIS,
+    [],
     { ordem: "id" }
   );
 

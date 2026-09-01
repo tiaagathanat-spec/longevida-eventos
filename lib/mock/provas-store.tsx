@@ -49,31 +49,6 @@ type ProvasContextValue = {
 
 const ProvasContext = createContext<ProvasContextValue | null>(null);
 
-// Provas iniciais associadas ao evento "1" (Copa Longevida de Natação),
-// usando os IDs semeados em modalidades-store e categorias-store/tipos-prova-store.
-const PROVAS_INICIAIS: Prova[] = [
-  {
-    id: "1",
-    eventoId: "1",
-    modalidadeId: "1", // 50m Livre
-    categoriaId: "1", // Infantil A
-    tipoProvaId: "1", // Individual
-    horario: "09:00",
-    observacoes: "",
-    valor: 120,
-  },
-  {
-    id: "2",
-    eventoId: "1",
-    modalidadeId: "2", // 100m Costas
-    categoriaId: "3", // Juvenil
-    tipoProvaId: "1", // Individual
-    horario: "09:40",
-    observacoes: "",
-    valor: 150,
-  },
-];
-
 function gerarId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -86,7 +61,7 @@ export function ProvasProvider({ children }: { children: ReactNode }) {
     erro,
   } = usePersistencia<Prova>(
     "app_provas",
-    PROVAS_INICIAIS,
+    [],
     { ordem: "id" }
   );
 

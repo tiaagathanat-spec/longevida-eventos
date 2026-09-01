@@ -44,33 +44,6 @@ type PatrocinadoresContextValue = {
 
 const PatrocinadoresContext = createContext<PatrocinadoresContextValue | null>(null);
 
-const PATROCINADORES_INICIAIS: Patrocinador[] = [
-  {
-    id: "1",
-    nome: "Supermercado Bom Preço",
-    siteUrl: "https://exemplo.com/bompreco",
-    descricao: "Patrocínio principal da temporada.",
-    cota: "ouro",
-    eventos: ["1", "2"],
-  },
-  {
-    id: "2",
-    nome: "Padaria do Vale",
-    siteUrl: "https://exemplo.com/padaria",
-    descricao: "Kit de alimentação dos atletas.",
-    cota: "prata",
-    eventos: ["1"],
-  },
-  {
-    id: "3",
-    nome: "Clínica Vita",
-    siteUrl: "https://exemplo.com/clinicavita",
-    descricao: "Avaliações médicas para os inscritos.",
-    cota: "apoio",
-    eventos: ["2"],
-  },
-];
-
 function gerarId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -83,7 +56,7 @@ export function PatrocinadoresProvider({ children }: { children: ReactNode }) {
     erro,
   } = usePersistencia<Patrocinador>(
     "app_patrocinadores",
-    PATROCINADORES_INICIAIS,
+    [],
     { ordem: "id" }
   );
 
