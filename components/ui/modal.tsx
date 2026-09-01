@@ -8,10 +8,12 @@ type ModalProps = {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  tamanho?: "md" | "lg" | "xl";
 };
 
-export function Modal({ open, title, onClose, children }: ModalProps) {
+export function Modal({ open, title, onClose, children, tamanho = "md" }: ModalProps) {
   const titleId = useId();
+  const largura = tamanho === "lg" ? "max-w-2xl" : tamanho === "xl" ? "max-w-4xl" : "max-w-md";
 
   useEffect(() => {
     if (!open) return;
@@ -31,7 +33,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
       aria-labelledby={titleId}
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
     >
-      <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 dark:bg-slate-900">
+      <div className={`max-h-[calc(100dvh-2rem)] w-full ${largura} overflow-y-auto rounded-2xl bg-white p-6 dark:bg-slate-900`}>
         <div className="mb-5 flex items-center justify-between">
           <h2 id={titleId} className="text-base font-semibold text-slate-900 dark:text-white">
             {title}

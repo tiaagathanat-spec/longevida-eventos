@@ -193,7 +193,7 @@ export default function ResultadosPage() {
       ) : (
         <>
           {comTempo.length > 0 && (
-            <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <ResumoRevisao
                 icone={<Clock3 className="h-4 w-4" />}
                 cor="bg-amber-100 text-amber-600"

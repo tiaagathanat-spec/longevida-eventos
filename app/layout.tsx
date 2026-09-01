@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/lib/mock/providers";
@@ -9,6 +9,14 @@ export const metadata: Metadata = {
   title: "Longevida Eventos",
   description: "Sistema de gestão de eventos esportivos do Espaço Longevida",
   manifest: "/manifest.webmanifest",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0ea5e9",
 };
 
 export default function RootLayout({

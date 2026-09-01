@@ -79,7 +79,7 @@ export default function OrganizacaoKitsPage() {
       <AlertaPersistencia erro={erroInscricoes ?? erroDorsais} />
 
       {/* Contadores de produção/entrega */}
-      <div className="mb-8 grid grid-cols-3 gap-4">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
