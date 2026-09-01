@@ -383,7 +383,7 @@ export function CronometragemClient() {
       )}
 
       {/* Seletor de modo */}
-      <div className="mb-6 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1 dark:bg-slate-900">
+      <div className="mb-6 grid grid-cols-1 gap-2 rounded-2xl bg-slate-100 p-1 dark:bg-slate-900 sm:grid-cols-2">
         <button
           type="button"
           onClick={() => setModo("cronometro")}

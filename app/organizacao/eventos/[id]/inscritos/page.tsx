@@ -187,8 +187,8 @@ export default function OrganizacaoInscritosPage() {
               <tr className="border-b border-slate-100 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
                 <th className="px-4 py-3 font-medium">Peito</th>
                 <th className="px-4 py-3 font-medium">Atleta</th>
-                <th className="px-4 py-3 font-medium">Prova</th>
-                <th className="px-4 py-3 font-medium">
+                <th className="hidden px-4 py-3 font-medium md:table-cell">Prova</th>
+                <th className="hidden px-4 py-3 font-medium md:table-cell">
                   {criterio === "categoria" ? "Categoria" : "Faixa etária"}
                 </th>
                 <th className="px-4 py-3 font-medium">Check-in</th>
@@ -213,12 +213,12 @@ export default function OrganizacaoInscritosPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                  <td className="hidden px-4 py-3 text-slate-600 dark:text-slate-300 md:table-cell">
                     {prova
                       ? `${nomeModalidade(prova.modalidadeId)} · ${nomeCategoria(prova.categoriaId)}`
                       : "—"}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="hidden px-4 py-3 md:table-cell">
                     <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
                       <span
                         className="h-3 w-3 rounded-full"

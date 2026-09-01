@@ -342,7 +342,7 @@ export default function CadastroPage() {
       </div>
 
       {/* Formulário */}
-      <div className="relative flex items-center justify-center px-6 py-16">
+      <div className="relative flex items-center justify-center px-4 py-8 sm:px-6 md:py-16">
         {/* Marca d'água */}
         <div
           aria-hidden
