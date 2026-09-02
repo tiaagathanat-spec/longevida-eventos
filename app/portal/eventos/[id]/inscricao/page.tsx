@@ -283,7 +283,7 @@ export default function InscricaoPage() {
       });
     }
 
-    router.push(`/portal/eventos/${eventoId}/pagamento`);
+    router.push(`/portal/eventos/${eventoId}/pagamento?inscricao_nova=1`);
   }
 
   // Cria o perfil de atleta do usuário logado ("Eu mesmo(a)") quando ele

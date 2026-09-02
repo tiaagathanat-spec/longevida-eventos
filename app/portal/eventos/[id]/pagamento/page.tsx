@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CreditCard, CheckCircle2, UploadCloud, ImageIcon } from "lucide-react";
+import { ArrowLeft, CreditCard, CheckCircle2, UploadCloud, ImageIcon, AlertCircle } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
@@ -20,6 +20,7 @@ type FormaEscolhida = "pix" | "local";
 export default function PagamentoPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const eventoId = params.id;
 
   const { sessao } = useSessao();
@@ -72,6 +73,9 @@ export default function PagamentoPage() {
       return proximas;
     });
   }, [pendentes]);
+
+  // Detecta se veio de uma inscrição recém-criada
+  const inscricaoNova = searchParams.get("inscricao_nova") === "1";
 
   function nomeModalidade(id: string) {
     return modalidades.find((m) => m.id === id)?.nome ?? "—";
@@ -219,6 +223,21 @@ export default function PagamentoPage() {
 
       <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Pagamento</h1>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{evento.nome}</p>
+
+      {inscricaoNova && (
+        <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-4 dark:bg-amber-900/30 dark:border-amber-800">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-800 dark:text-amber-200">
+              <p className="font-semibold">Inscrição criada com sucesso!</p>
+              <p className="mt-1">
+                Caso a sua inscrição apareça como <strong>pendente</strong>, aguarde o prazo de 24h e a organização
+                irá confirmar. Você pode acompanhar o status em "Minhas Inscrições".
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {pendentes.length === 0 ? (
         <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-950">
