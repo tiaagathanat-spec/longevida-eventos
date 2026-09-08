@@ -147,6 +147,17 @@ export async function gravarLinhas<T>(
     if (linhas.length === 0) {
       return { ok: true };
     }
+    // Garante que a sessão está válida antes de gravar (refresh se expirado)
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) {
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        return {
+          ok: false,
+          motivo: `Sessão expirada. Faça login novamente.`,
+        };
+      }
+    }
     let bloqueioRls = false;
     for (const linha of linhas) {
       const { error } = await supabase
