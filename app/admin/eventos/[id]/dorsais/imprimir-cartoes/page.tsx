@@ -29,7 +29,6 @@ function formatarData(iso: string) {
 }
 
 // Envolve o CartaoDorsal para buscar o QR da inscrição via hook
-// (hooks não podem ser chamados dentro de um .map()).
 function CartaoComQr({
   inscricaoId,
   ...props
@@ -38,7 +37,7 @@ function CartaoComQr({
   return <CartaoDorsal {...props} qrcodeConteudo={qr?.identificador} />;
 }
 
-export default function ImprimirDorsaisPage() {
+export default function ImprimirCartoesPage() {
   const params = useParams<{ id: string }>();
   const eventoId = params.id;
 
@@ -88,14 +87,22 @@ export default function ImprimirDorsaisPage() {
       .sort((a, b) => (a.dorsal!.numero ?? 0) - (b.dorsal!.numero ?? 0));
   }, [inscricoes, provas, categorias, atletas, eventoId, obterCriterio, obterFaixa, obterPorInscricao]);
 
-  // Agrupar em pares (2 dorsais por folha A4 retrato, empilhados)
+  // Agrupar em grupos de 6 (2 linhas x 3 colunas = 6 por página A4 landscape)
   const paginas = useMemo(() => {
-    const resultado: typeof cartoes[] = [];
-    for (let i = 0; i < cartoes.length; i += 2) {
-      resultado.push(cartoes.slice(i, i + 2));
+    const resultado = [];
+    for (let i = 0; i < cartoes.length; i += 6) {
+      resultado.push(cartoes.slice(i, i + 6));
     }
     return resultado;
   }, [cartoes]);
+
+  function formatarData(iso: string) {
+    return new Date(iso + "T00:00:00").toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
 
   if (!evento) {
     return (
@@ -133,56 +140,62 @@ export default function ImprimirDorsaisPage() {
           {paginas.map((pagina, pageIdx) => (
             <div
               key={pageIdx}
-              className="dorsais-pagina-imprimir break-inside-avoid"
-              style={{ height: "29.7cm", width: "21cm" }}
+              className="cartoes-pagina-imprimir break-inside-avoid"
+              style={{ height: "21cm", width: "29.7cm" }}
             >
               <div
-                className="flex flex-col items-center justify-between"
-                style={{ height: "29.7cm", width: "21cm" }}
+                className="flex flex-col h-[21cm] w-[29.7cm] items-center justify-between gap-0"
+                style={{ height: "21cm", width: "29.7cm" }}
               >
-                {/* Dorsal 1 */}
-                <div
-                  className="dorsal-wrapper shrink-0"
-                  style={{ width: "19cm", height: "14.5cm" }}
-                >
-                  {pagina[0] && (
-                    <CartaoComQr
-                      inscricaoId={pagina[0].inscricao.id}
-                      numero={pagina[0].dorsal!.numero}
-                      atletaNome={nomeDaInscricao(pagina[0].inscricao)}
-                      categoriaNome={pagina[0].grupoNome}
-                      eventoNome={evento.nome}
-                      dataEvento={formatarData(evento.data)}
-                      capaUrl={capa}
-                      logoUrl={logo}
-                      cor={pagina[0].cor}
-                      medalhaEntregue={pagina[0].dorsal!.medalhaEntregue}
-                      alimentacaoEntregue={pagina[0].dorsal!.alimentacaoEntregue}
-                      kitEntregue={pagina[0].dorsal!.kitEntregue}
-                    />
-                  )}
+                {/* Linha 1: 3 cartões */}
+                <div className="flex gap-0 justify-center" style={{ width: "29.7cm" }}>
+                  {pagina.slice(0, 3).map((item, i) => (
+                    <div
+                      key={`${pageIdx}-row1-${i}`}
+                      className="cartao-wrapper shrink-0"
+                      style={{ width: "9.9cm", height: "14.5cm" }}
+                    >
+                      <CartaoComQr
+                        inscricaoId={item.inscricao.id}
+                        numero={item.dorsal!.numero}
+                        atletaNome={nomeDaInscricao(item.inscricao)}
+                        categoriaNome={item.grupoNome}
+                        eventoNome={evento.nome}
+                        dataEvento={formatarData(evento.data)}
+                        capaUrl={capa}
+                        logoUrl={logo}
+                        cor={item.cor}
+                        medalhaEntregue={item.dorsal!.medalhaEntregue}
+                        alimentacaoEntregue={item.dorsal!.alimentacaoEntregue}
+                        kitEntregue={item.dorsal!.kitEntregue}
+                      />
+                    </div>
+                  ))}
                 </div>
-                {/* Dorsal 2 */}
-                <div
-                  className="dorsal-wrapper shrink-0"
-                  style={{ width: "19cm", height: "14.5cm" }}
-                >
-                  {pagina[1] && (
-                    <CartaoComQr
-                      inscricaoId={pagina[1].inscricao.id}
-                      numero={pagina[1].dorsal!.numero}
-                      atletaNome={nomeDaInscricao(pagina[1].inscricao)}
-                      categoriaNome={pagina[1].grupoNome}
-                      eventoNome={evento.nome}
-                      dataEvento={formatarData(evento.data)}
-                      capaUrl={capa}
-                      logoUrl={logo}
-                      cor={pagina[1].cor}
-                      medalhaEntregue={pagina[1].dorsal!.medalhaEntregue}
-                      alimentacaoEntregue={pagina[1].dorsal!.alimentacaoEntregue}
-                      kitEntregue={pagina[1].dorsal!.kitEntregue}
-                    />
-                  )}
+                {/* Linha 2: 3 cartões */}
+                <div className="flex gap-0 justify-center" style={{ width: "29.7cm" }}>
+                  {pagina.slice(3, 6).map((item, i) => (
+                    <div
+                      key={`${pageIdx}-row2-${i}`}
+                      className="cartao-wrapper shrink-0"
+                      style={{ width: "9.9cm", height: "14.5cm" }}
+                    >
+                      <CartaoComQr
+                        inscricaoId={item.inscricao.id}
+                        numero={item.dorsal!.numero}
+                        atletaNome={nomeDaInscricao(item.inscricao)}
+                        categoriaNome={item.grupoNome}
+                        eventoNome={evento.nome}
+                        dataEvento={formatarData(evento.data)}
+                        capaUrl={capa}
+                        logoUrl={logo}
+                        cor={item.cor}
+                        medalhaEntregue={item.dorsal!.medalhaEntregue}
+                        alimentacaoEntregue={item.dorsal!.alimentacaoEntregue}
+                        kitEntregue={item.dorsal!.kitEntregue}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -190,25 +203,23 @@ export default function ImprimirDorsaisPage() {
         </div>
       )}
 
-      {/* Impressão: A4 retrato com 2 dorsais por folha (19 cm x 14,5 cm
-           cada, empilhados verticalmente). */}
       <style jsx global>{`
         @media print {
           @page {
-            size: A4 portrait;
+            size: A4 landscape;
             margin: 0;
           }
-          .dorsais-pagina-imprimir {
-            height: 29.7cm;
-            width: 21cm;
+          .cartoes-pagina-imprimir {
+            height: 21cm;
+            width: 29.7cm;
             page-break-after: always;
             overflow: hidden;
           }
-          .dorsais-pagina-imprimir:last-child {
+          .cartoes-pagina-imprimir:last-child {
             page-break-after: auto;
           }
-          .dorsal-wrapper {
-            width: 19cm;
+          .cartao-wrapper {
+            width: 9.9cm;
             height: 14.5cm;
             display: flex;
             align-items: center;

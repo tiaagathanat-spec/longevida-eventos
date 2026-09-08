@@ -24,7 +24,7 @@ export type Linha = Record<string, unknown>;
 export function snakeParaCamel(linha: Linha): Linha {
   const saida: Linha = {};
   for (const [chave, valor] of Object.entries(linha)) {
-    const camel = chave.replace(/_([a-z])/g, (_, letra: string) =>
+    const camel = chave.replace(/_([a-z0-9])/g, (_, letra: string) =>
       letra.toUpperCase()
     );
     saida[camel] = valor;
@@ -35,7 +35,7 @@ export function snakeParaCamel(linha: Linha): Linha {
 export function camelParaSnake(linha: Linha): Linha {
   const saida: Linha = {};
   for (const [chave, valor] of Object.entries(linha)) {
-    const snake = chave.replace(/[A-Z]/g, (letra) => `_${letra.toLowerCase()}`);
+    const snake = chave.replace(/[A-Z0-9]/g, (letra) => `_${letra.toLowerCase()}`);
     saida[snake] = valor;
   }
   return saida;

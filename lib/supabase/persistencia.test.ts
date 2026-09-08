@@ -23,6 +23,12 @@ describe("snakeParaCamel", () => {
   it("deixa chaves sem underscore intocadas", () => {
     expect(snakeParaCamel({ id: "1", nome: "x" })).toEqual({ id: "1", nome: "x" });
   });
+
+  it("converte sufixos ordinais numericos (atleta_nome_2 -> atletaNome2)", () => {
+    expect(
+      snakeParaCamel({ atleta_nome_2: "Marina", atleta_nome_3: "Caio" })
+    ).toEqual({ atletaNome2: "Marina", atletaNome3: "Caio" });
+  });
 });
 
 describe("camelParaSnake", () => {
@@ -50,6 +56,11 @@ describe("camelParaSnake", () => {
       data_nascimento: "2017-05-01",
       contato_emergencia_telefone: "99999",
     };
+    expect(camelParaSnake(snakeParaCamel(original))).toEqual(original);
+  });
+
+  it("é a inversa incluindo sufixos ordinais numericos", () => {
+    const original = { atleta_nome_2: "Marina", atleta_nome_3: "Caio" };
     expect(camelParaSnake(snakeParaCamel(original))).toEqual(original);
   });
 });

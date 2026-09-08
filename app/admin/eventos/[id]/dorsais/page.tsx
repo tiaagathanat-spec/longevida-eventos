@@ -145,12 +145,20 @@ export default function DorsaisDoEventoPage() {
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Dorsais</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{evento.nome}</p>
         </div>
-        <Link href={`/admin/eventos/${eventoId}/dorsais/imprimir`}>
-          <Button>
-            <Printer className="h-4 w-4" />
-            Imprimir dorsais (A4)
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/admin/eventos/${eventoId}/dorsais/imprimir-cartoes`}>
+            <Button variant="secondary">
+              <Printer className="h-4 w-4" />
+              Cartões (6 por A4)
+            </Button>
+          </Link>
+          <Link href={`/admin/eventos/${eventoId}/dorsais/imprimir`}>
+            <Button>
+              <Printer className="h-4 w-4" />
+              Dorsais (2 por A4)
+            </Button>
+          </Link>
+        </div>
       </header>
 
       <AlertaPersistencia erro={erroInscricoes ?? erroDorsais} />

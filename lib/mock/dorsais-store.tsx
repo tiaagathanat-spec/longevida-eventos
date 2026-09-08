@@ -33,6 +33,7 @@ export type RegistroAuditoriaDorsal = {
 export type Dorsal = {
   id: string;
   inscricaoId: string;
+  provaId: string;
   numero: number;
   checkInFeito: boolean;
   medalhaEntregue: boolean;
@@ -59,7 +60,7 @@ type DorsaisContextValue = {
   pronto: boolean;
   erro: string | null;
   obterPorInscricao: (inscricaoId: string) => Dorsal | undefined;
-  registrar: (inscricaoId: string, numero: number) => Dorsal;
+  registrar: (inscricaoId: string, numero: number, provaId: string) => Dorsal;
   atualizarControles: (
     inscricaoId: string,
     dados: Partial<Pick<Dorsal, ChaveControleDorsal>>,
@@ -92,10 +93,11 @@ export function DorsaisProvider({ children }: { children: ReactNode }) {
       erro,
       obterPorInscricao: (inscricaoId) =>
         dorsais.find((d) => d.inscricaoId === inscricaoId),
-      registrar: (inscricaoId, numero) => {
+      registrar: (inscricaoId, numero, provaId) => {
         const novo: Dorsal = {
           id: gerarId(),
           inscricaoId,
+          provaId,
           numero,
           checkInFeito: false,
           medalhaEntregue: false,
