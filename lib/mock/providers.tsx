@@ -28,7 +28,7 @@ import { GaleriaProvider } from "@/lib/mock/galeria-store";
 import { RegulamentosProvider } from "@/lib/mock/regulamentos-store";
 import { FaixasNumeracaoProvider } from "@/lib/mock/faixas-numeracao-store";
 import { DorsaisProvider } from "@/lib/mock/dorsais-store";
-import { DorsaisAutoAssignNew } from "@/lib/mock/dorsais-auto-assign-new";
+import { DorsaisAutoAssign } from "@/lib/mock/dorsais-auto-assign";
 import { PatrocinadoresProvider } from "@/lib/mock/patrocinadores-store";
 import { QrCodesProvider } from "@/lib/mock/qrcodes-store";
 
@@ -53,7 +53,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
                                   <RegulamentosProvider>
                                     <FaixasNumeracaoProvider>
                                       <DorsaisProvider>
-                                        <DorsaisAutoAssignNew />
+                                        <DorsaisAutoAssign />
                                         {children}
                                       </DorsaisProvider>
                                     </FaixasNumeracaoProvider>
