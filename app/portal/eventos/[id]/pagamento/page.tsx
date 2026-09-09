@@ -13,6 +13,7 @@ import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { usePagamentos } from "@/lib/mock/pagamentos-store";
 import { useSessao } from "@/lib/mock/sessao";
 import { CHAVE_PIX_LONGEVIDA, QR_PIX_LONGEVIDA } from "@/lib/config";
+import { enviarComprovantePix } from "@/lib/supabase/comprovantes-storage";
 import { Button } from "@/components/ui/button";
 
 type FormaEscolhida = "pix" | "local";
@@ -40,6 +41,7 @@ export default function PagamentoPage() {
   const [erroUpload, setErroUpload] = useState<string | null>(null);
   const [copiadoPix, setCopiadoPix] = useState(false);
   const inputArquivoRef = useRef<HTMLInputElement>(null);
+  const arquivoComprovanteRef = useRef<File | null>(null);
 
   const meusNomesDeAtletas = useMemo(
     () =>
@@ -119,31 +121,48 @@ export default function PagamentoPage() {
       return;
     }
     setErroUpload(null);
+    arquivoComprovanteRef.current = file;
     const reader = new FileReader();
     reader.onload = () => setComprovante(String(reader.result));
     reader.readAsDataURL(file);
   }
 
-  function handleConfirmar() {
+  async function handleConfirmar() {
+    if (selecionadasLista.length === 0) return;
     const hoje = new Date().toISOString().slice(0, 10);
 
     // PIX: o comprovante chega pendente no Financeiro do admin, que
     // confirma o pagamento e a inscrição manualmente.
     if (forma === "pix") {
-      if (!comprovante) {
+      const arquivo = arquivoComprovanteRef.current;
+      if (!comprovante || !arquivo) {
         setErroUpload("Anexe o comprovante do PIX para continuar.");
         return;
       }
-      selecionadasLista.forEach((i) => {
-        salvarPagamento(i.id, {
-          valor: valorDaInscricao(i.provaId),
-          formaPagamento: "pix",
-          status: "pendente",
-          dataPagamento: null,
-          comprovanteUrl: comprovante,
-        });
-      });
+      setErroUpload(null);
       setAguardandoConfirmacao(true);
+      // Envia o arquivo ao Storage uma única vez; a URL vale para todas
+      // as inscrições selecionadas (o caminho usa a primeira delas).
+      try {
+        const { url } = await enviarComprovantePix({
+          arquivo,
+          eventoId,
+          inscricaoId: selecionadasLista[0].id,
+        });
+        selecionadasLista.forEach((i) => {
+          salvarPagamento(i.id, {
+            valor: valorDaInscricao(i.provaId),
+            formaPagamento: "pix",
+            status: "pendente",
+            dataPagamento: null,
+            comprovanteUrl: url,
+          });
+        });
+      } catch (e) {
+        setErroUpload(e instanceof Error ? e.message : "Falha ao enviar o comprovante. Tente novamente.");
+        setAguardandoConfirmacao(false);
+        return;
+      }
       return;
     }
 
@@ -409,7 +428,10 @@ export default function PagamentoPage() {
                           type="button"
                           variant="ghost"
                           className="text-red-500 hover:bg-red-50 hover:text-red-600"
-                          onClick={() => setComprovante(null)}
+                          onClick={() => {
+                            setComprovante(null);
+                            arquivoComprovanteRef.current = null;
+                          }}
                         >
                           Remover
                         </Button>

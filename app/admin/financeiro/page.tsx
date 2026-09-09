@@ -40,6 +40,21 @@ function formatarData(iso: string | null) {
   return new Date(iso + "T00:00:00").toLocaleDateString("pt-BR");
 }
 
+const EXTENSOES_IMAGEM = /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i;
+
+// Comprovante como imagem: data URL legada (base64) ou URL pública do
+// bucket `comprovantes` com extensão de imagem.
+function exibirComprovanteComoImagem(url: string | undefined) {
+  if (!url) return false;
+  if (url.startsWith("data:image")) return true;
+  return EXTENSOES_IMAGEM.test(url);
+}
+
+// Arquivo enviado ao Storage (PDF etc) — abre em nova aba.
+function ehComprovanteDeArquivo(url: string | undefined) {
+  return !!url && (url.startsWith("https://") || url.startsWith("/storage/"));
+}
+
 export default function FinanceiroPage() {
   const { eventos } = useEventos();
   const { categorias } = useCategorias();
@@ -427,13 +442,23 @@ export default function FinanceiroPage() {
       >
         {linhaComprovante && (
           <div className="flex flex-col gap-4">
-            {linhaComprovante.pagamento.comprovanteUrl?.startsWith("data:image") ? (
+            {exibirComprovanteComoImagem(linhaComprovante.pagamento.comprovanteUrl) ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={linhaComprovante.pagamento.comprovanteUrl}
                 alt="Comprovante de pagamento"
                 className="max-h-80 w-full rounded-xl border border-slate-200 object-contain dark:border-slate-800"
               />
+            ) : ehComprovanteDeArquivo(linhaComprovante.pagamento.comprovanteUrl) ? (
+              <a
+                href={linhaComprovante.pagamento.comprovanteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-blue/30 bg-brand-green/10 px-4 py-2.5 text-sm font-medium text-brand-green transition-colors hover:bg-brand-green/20"
+              >
+                <FileText className="h-4 w-4" />
+                Abrir documento do comprovante
+              </a>
             ) : (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900">
                 Documento anexado (PDF ou outro formato). O anexo foi recebido e pode ser
