@@ -2,10 +2,16 @@
 
 // Motor de atribuição automática de dorsais.
 //
-// Este componente não renderiza nada — ele observa as Inscrições e,
-// sempre que encontra uma inscrição CONFIRMADA que ainda não tem um
-// número de peito, atribui automaticamente o próximo número disponível
-// dentro da faixa configurada para o grupo daquela inscrição.
+// Este componente não renderiza nada — ele observa as Inscrições e as
+// Faixas de Numeração e mantém os números de peito sempre coerentes:
+//
+//  1. Inscrição CONFIRMADA sem dorsal → atribui o próximo número livre
+//     dentro da faixa configurada para o grupo daquela inscrição.
+//  2. Dorsal existente cujo número ficou FORA da faixa do grupo (o admin
+//     mudou os intervalos) ou DUPLICADO com outro dorsal do mesmo grupo
+//     → reatribui o próximo número livre dentro da faixa, preservando a
+//     ordem atual. É assim que uma alteração feita na tela passa a valer
+//     sem precisar mexer no banco.
 //
 // O grupo segue o critério escolhido pelo administrador no evento
 // (faixas-numeracao-store): por CATEGORIA da prova ou por IDADE do
@@ -26,6 +32,7 @@ import {
   resolverGrupoNumeracao,
 } from "@/lib/mock/faixas-numeracao-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
+import { reconciliarNumerosDoGrupo } from "@/lib/mock/dorsais-reconciliar";
 
 export function DorsaisAutoAssign() {
   const { inscricoes, atualizar: atualizarInscricao } = useInscricoes();
@@ -33,30 +40,36 @@ export function DorsaisAutoAssign() {
   const { atletas } = useAtletas();
   const { categorias } = useCategorias();
   const { obterCriterio, obter: obterFaixa } = useFaixasNumeracao();
-  const { dorsais, obterPorInscricao, registrar } = useDorsais();
+  const { dorsais, obterPorInscricao, registrar, atualizarNumero } = useDorsais();
 
   useEffect(() => {
     // Números já atribuídos em execuções anteriores, agrupados por faixa
     // (evento + grupo) — evita confundir faixas de eventos/grupos
     // diferentes que por acaso usem números parecidos.
     const numerosPorFaixa = new Map<string, Set<number>>();
+    // Grupo/faixa de cada dorsal existente (chave `eventoId::grupoId`).
+    const chaveDoDorsal = new Map<string, string>();
     for (const dorsal of dorsais) {
-      const outraInscricao = inscricoes.find((i) => i.id === dorsal.inscricaoId);
-      const outraProva = provas.find((p) => p.id === outraInscricao?.provaId);
-      if (!outraInscricao || !outraProva) continue;
-      const outroAtleta = atletas.find((a) => a.nome === outraInscricao.atletaNome);
-      const outraCategoria = categorias.find((c) => c.id === outraProva.categoriaId);
+      const inscricao = inscricoes.find((i) => i.id === dorsal.inscricaoId);
+      if (!inscricao || inscricao.status !== "confirmada") continue;
+      const prova = provas.find((p) => p.id === inscricao.provaId);
+      if (!prova) continue;
+      const atleta = atletas.find((a) => a.nome === inscricao.atletaNome);
+      const categoria = categorias.find((c) => c.id === prova.categoriaId);
       const grupo = resolverGrupoNumeracao(
-        obterCriterio(outraInscricao.eventoId),
-        outraCategoria,
-        outroAtleta
+        obterCriterio(inscricao.eventoId),
+        categoria,
+        atleta
       );
-      const chave = `${outraInscricao.eventoId}::${grupo.grupoId}`;
+      if (!grupo.grupoId) continue;
+      const chave = `${inscricao.eventoId}::${grupo.grupoId}`;
+      chaveDoDorsal.set(dorsal.id, chave);
       const set = numerosPorFaixa.get(chave) ?? new Set<number>();
       set.add(dorsal.numero);
       numerosPorFaixa.set(chave, set);
     }
 
+    // 1. Atribui números às inscrições confirmadas que ainda não têm dorsal.
     inscricoes
       .filter((inscricao) => inscricao.status === "confirmada")
       .filter((inscricao) => !obterPorInscricao(inscricao.id))
@@ -96,9 +109,45 @@ export function DorsaisAutoAssign() {
         atualizarInscricao(inscricao.id, { numeroPeito: String(proximoNumero) });
       });
 
-    // Mantém o `numeroPeito` da inscrição em sincronia com o dorsal já
-    // atribuído — importante após a carga do banco, quando a inscrição
-    // chega sem o espelho (o dorsal vem da tabela app_dorsais).
+    // 2. Reconciliação: renumera dorsais existentes fora da faixa do
+    //    grupo ou duplicados dentro dela. Processa cada faixa de forma
+    //    determinística (módulo puro lib/mock/dorsais-reconciliar).
+    for (const [chave, todosUsados] of numerosPorFaixa) {
+      const [eventoId, grupoId] = chave.split("::") as [string, string];
+      const faixa = obterFaixa(eventoId, grupoId);
+      if (!faixa) continue;
+
+      const dorsaisDoGrupo = dorsais.filter(
+        (d) => chaveDoDorsal.get(d.id) === chave
+      );
+      // Números atribuídos nesta execução (inscrições novas) não podem
+      // ser reutilizados: são os usados da faixa que não pertencem a
+      // nenhum dorsal antigo.
+      const numerosDosAntigos = new Set(
+        dorsaisDoGrupo.map((d) => d.numero)
+      );
+      const numerosNovos = [...todosUsados].filter(
+        (n) => !numerosDosAntigos.has(n)
+      );
+
+      const mudancas = reconciliarNumerosDoGrupo(
+        faixa,
+        dorsaisDoGrupo,
+        numerosNovos
+      );
+      for (const [dorsalId, novoNumero] of mudancas) {
+        const dorsal = dorsais.find((d) => d.id === dorsalId);
+        if (!dorsal) continue;
+        atualizarNumero(dorsal.inscricaoId, novoNumero);
+        atualizarInscricao(dorsal.inscricaoId, {
+          numeroPeito: String(novoNumero),
+        });
+      }
+    }
+
+    // 3. Mantém o `numeroPeito` da inscrição em sincronia com o dorsal já
+    //    atribuído — importante após a carga do banco, quando a inscrição
+    //    chega sem o espelho (o dorsal vem da tabela app_dorsais).
     for (const dorsal of dorsais) {
       const inscricao = inscricoes.find((i) => i.id === dorsal.inscricaoId);
       if (inscricao && inscricao.numeroPeito !== String(dorsal.numero)) {
@@ -113,6 +162,7 @@ export function DorsaisAutoAssign() {
     categorias,
     obterPorInscricao,
     registrar,
+    atualizarNumero,
     obterCriterio,
     obterFaixa,
     atualizarInscricao,

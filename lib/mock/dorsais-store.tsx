@@ -61,6 +61,7 @@ type DorsaisContextValue = {
   erro: string | null;
   obterPorInscricao: (inscricaoId: string) => Dorsal | undefined;
   registrar: (inscricaoId: string, numero: number, provaId: string) => Dorsal;
+  atualizarNumero: (inscricaoId: string, numero: number) => void;
   atualizarControles: (
     inscricaoId: string,
     dados: Partial<Pick<Dorsal, ChaveControleDorsal>>,
@@ -108,6 +109,13 @@ export function DorsaisProvider({ children }: { children: ReactNode }) {
         };
         setDorsais((atual) => [...atual, novo]);
         return novo;
+      },
+      atualizarNumero: (inscricaoId, numero) => {
+        setDorsais((atual) =>
+          atual.map((d) =>
+            d.inscricaoId === inscricaoId ? { ...d, numero } : d
+          )
+        );
       },
       atualizarControles: (inscricaoId, dados, usuario = "Operador") => {
         const em = new Date().toISOString();

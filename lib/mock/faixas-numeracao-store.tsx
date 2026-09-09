@@ -11,7 +11,7 @@
 // essas faixas para atribuir automaticamente o próximo número livre a
 // cada inscrição confirmada (ver lib/mock/dorsais-auto-assign.tsx).
 
-import { createContext, useContext, useMemo, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, ReactNode } from "react";
 import { usePersistencia } from "@/lib/supabase/persistencia";
 // Lógica pura (tipos, cores, faixas etárias e cálculo de idade) vive em
 // faixas-numeracao.ts e é reexportada aqui para manter compatibilidade
@@ -64,6 +64,11 @@ function gerarId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+// Linha da tabela-espelho app_criterio_numeracao (migration 0021): o
+// critério de numeração escolhido por evento, persistido para valer entre
+// recargas de página.
+type LinhaCriterioNumeracao = { eventoId: string; criterio: CriterioNumeracao };
+
 export function FaixasNumeracaoProvider({ children }: { children: ReactNode }) {
   const {
     dados: faixas,
@@ -75,7 +80,39 @@ export function FaixasNumeracaoProvider({ children }: { children: ReactNode }) {
     [],
     { ordem: "id" }
   );
-  const [criterios, setCriterios] = useState<Record<string, CriterioNumeracao>>({});
+  // Critério de numeração por evento também é persistido (tabela
+  // app_criterio_numeracao, migration 0021) para a escolha feita na tela
+  // valer após recarregar, sem depender de ajuste manual no banco.
+  const {
+    dados: criteriosLinhas,
+    setDados: setCriteriosLinhas,
+    pronto: criteriosPronto,
+  } = usePersistencia<LinhaCriterioNumeracao>(
+    "app_criterio_numeracao",
+    [],
+    { ordem: "evento_id" }
+  );
+
+  const criterios = useMemo(() => {
+    const mapa: Record<string, CriterioNumeracao> = {};
+    for (const linha of criteriosLinhas) mapa[linha.eventoId] = linha.criterio;
+    return mapa;
+  }, [criteriosLinhas]);
+
+  // Ao carregar, descarta faixas cujo tipo não corresponde ao critério
+  // persistido do evento (sobras de trocas de critério anteriores). A
+  // remoção é sincronizada com o banco pela camada de persistência.
+  useEffect(() => {
+    if (!pronto || !criteriosPronto) return;
+    setFaixas((atual) => {
+      const invalidas = atual.filter(
+        (f) => criterios[f.eventoId] && f.grupoTipo !== criterios[f.eventoId]
+      );
+      if (invalidas.length === 0) return atual;
+      const idsInvalidadas = new Set(invalidas.map((f) => f.id));
+      return atual.filter((f) => !idsInvalidadas.has(f.id));
+    });
+  }, [pronto, criteriosPronto, criterios, setFaixas]);
 
   const value = useMemo<FaixasNumeracaoContextValue>(
     () => ({
@@ -84,8 +121,22 @@ export function FaixasNumeracaoProvider({ children }: { children: ReactNode }) {
       erro,
       listarPorEvento: (eventoId) => faixas.filter((f) => f.eventoId === eventoId),
       obterCriterio: (eventoId) => criterios[eventoId] ?? "categoria",
-      definirCriterio: (eventoId, criterio) =>
-        setCriterios((atual) => ({ ...atual, [eventoId]: criterio })),
+      definirCriterio: (eventoId, criterio) => {
+        const anterior = criterios[eventoId] ?? "categoria";
+        if (anterior === criterio) return;
+        setCriteriosLinhas((atual) => {
+          const demais = atual.filter((r) => r.eventoId !== eventoId);
+          return [...demais, { eventoId, criterio }];
+        });
+        // Troca de critério: as faixas do outro tipo pertencem a outro
+        // esquema de numeração e deixam de fazer sentido — são removidas
+        // (e a remoção também é sincronizada com o banco).
+        setFaixas((atual) =>
+          atual.filter(
+            (f) => !(f.eventoId === eventoId && f.grupoTipo !== criterio)
+          )
+        );
+      },
       obter: (eventoId, grupoId) =>
         faixas.find((f) => f.eventoId === eventoId && f.grupoId === grupoId),
       salvar: (eventoId, grupoId, grupoNome, dados) => {
