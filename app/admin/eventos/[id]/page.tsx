@@ -25,6 +25,9 @@ import {
   PlayCircle,
   Lock,
   CheckCircle2,
+  Printer,
+  Globe,
+  Wallet,
 } from "lucide-react";
 import {
   useEventos,
@@ -34,6 +37,8 @@ import {
   inscricoesEstaoAbertas,
 } from "@/lib/mock/eventos-store";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useProvas } from "@/lib/mock/provas-store";
+import { usePagamentos, pagamentoEfetivo } from "@/lib/mock/pagamentos-store";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -62,11 +67,17 @@ function formatarData(iso: string) {
   });
 }
 
+function formatarMoeda(valor: number) {
+  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 export default function VisualizarEventoPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { obterPorId, excluir, alterarStatus, carregando } = useEventos();
   const { inscricoes } = useInscricoes();
+  const { provas } = useProvas();
+  const { obterPorInscricao: obterPagamento } = usePagamentos();
   const evento = obterPorId(params.id);
   const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
   const [confirmandoFluxo, setConfirmandoFluxo] = useState<{
@@ -80,6 +91,24 @@ export default function VisualizarEventoPage() {
         .length,
     [inscricoes, params.id]
   );
+
+  const financeiro = useMemo(() => {
+    if (!evento) return { recebido: 0, pendente: 0 };
+    let recebido = 0;
+    let pendente = 0;
+    for (const inscricao of inscricoes) {
+      if (inscricao.eventoId !== evento.id) continue;
+      const prova = provas.find((p) => p.id === inscricao.provaId);
+      const pagamento = pagamentoEfetivo(
+        inscricao,
+        obterPagamento(inscricao.id),
+        prova?.valor
+      );
+      if (pagamento.status === "pago") recebido += pagamento.valor;
+      else if (pagamento.status === "pendente") pendente += pagamento.valor;
+    }
+    return { recebido, pendente };
+  }, [evento, inscricoes, provas, obterPagamento]);
 
   if (carregando) {
     return (
@@ -249,6 +278,41 @@ export default function VisualizarEventoPage() {
         )}
       </div>
 
+      {/* Operações rápidas: impressão e vitrine pública */}
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-950">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+          Operações rápidas
+        </h2>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          Ações de alta frequência — sem passar por telas intermediárias.
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Link
+            href={`/admin/eventos/${evento.id}/dorsais/imprimir`}
+            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 hover:border-brand-blue/40 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+          >
+            <Printer className="h-4 w-4 text-brand-blue" />
+            Imprimir dorsais (A4)
+          </Link>
+          <Link
+            href={`/admin/eventos/${evento.id}/cards`}
+            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 hover:border-brand-blue/40 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+          >
+            <Printer className="h-4 w-4 text-brand-blue" />
+            Imprimir cards (A4)
+          </Link>
+          <Link
+            href={`/eventos/${evento.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 hover:border-brand-blue/40 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+          >
+            <Globe className="h-4 w-4 text-brand-blue" />
+            Ver página pública
+          </Link>
+        </div>
+      </div>
+
       {/* Atalhos para configuração do evento */}
       <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
         <Link
@@ -316,20 +380,39 @@ export default function VisualizarEventoPage() {
         </Link>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Link
+          href={`/admin/financeiro?evento=${evento.id}`}
+          className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 text-sm hover:border-brand-blue/40 dark:border-slate-800 dark:bg-slate-950"
+        >
+          <span className="flex items-center gap-3 font-medium text-slate-700 dark:text-slate-200">
+            <Wallet className="h-4 w-4 text-brand-blue" />
+            Financeiro do evento
+          </span>
+          <span className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Recebido:{" "}
+            <span className="font-semibold text-brand-green">
+              {formatarMoeda(financeiro.recebido)}
+            </span>{" "}
+            · Pendente:{" "}
+            <span className="font-medium text-amber-600">
+              {formatarMoeda(financeiro.pendente)}
+            </span>
+          </span>
+        </Link>
+        <Link
+          href={`/admin/inscricoes?evento=${evento.id}`}
+          className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 hover:border-brand-blue/40 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+        >
+          <Users className="h-4 w-4 text-brand-blue" />
+          Inscrições do evento
+        </Link>
         <Link
           href={`/admin/eventos/${evento.id}/relatorios`}
           className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 hover:border-brand-blue/40 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
         >
           <FileBarChart className="h-4 w-4 text-brand-blue" />
           Relatórios
-        </Link>
-        <Link
-          href={`/admin/inscricoes`}
-          className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 hover:border-brand-blue/40 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
-        >
-          <Users className="h-4 w-4 text-brand-blue" />
-          Inscrições do evento
         </Link>
       </div>
 

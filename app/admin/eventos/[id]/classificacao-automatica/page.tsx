@@ -144,8 +144,15 @@ export default function ClassificacaoAutomaticaPage() {
       {provasDoEvento.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Este evento ainda não tem provas cadastradas.
+            Este evento ainda não tem provas cadastradas. Cadastre as provas para que a
+            classificação passe a ser calculada automaticamente.
           </p>
+          <Link
+            href={`/admin/eventos/${eventoId}/provas`}
+            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-blue-dark"
+          >
+            Cadastrar provas
+          </Link>
         </div>
       ) : (
         <>

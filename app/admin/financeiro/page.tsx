@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { FileSpreadsheet, FileText, Pencil, Paperclip, CheckCircle2 } from "lucide-react";
+import { useMemo, useState, Suspense } from "react";
+import { FileSpreadsheet, FileText, Pencil, Paperclip, CheckCircle2, Plus } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
@@ -56,13 +58,24 @@ function ehComprovanteDeArquivo(url: string | undefined) {
 }
 
 export default function FinanceiroPage() {
+  return (
+    <Suspense fallback={null}>
+      <FinanceiroConteudo />
+    </Suspense>
+  );
+}
+
+function FinanceiroConteudo() {
+  const searchParams = useSearchParams();
   const { eventos } = useEventos();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
   const { inscricoes, atualizar: atualizarInscricao, erro: erroInscricoes } = useInscricoes();
   const { obterPorInscricao, salvar, erro: erroPagamentos } = usePagamentos();
 
-  const [filtroEvento, setFiltroEvento] = useState("todos");
+  const [filtroEvento, setFiltroEvento] = useState(
+    () => searchParams.get("evento") ?? "todos"
+  );
   const [filtroCategoria, setFiltroCategoria] = useState("todos");
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroForma, setFiltroForma] = useState("todos");
@@ -331,11 +344,47 @@ export default function FinanceiroPage() {
 
       {/* Tabela */}
       {linhasFiltradas.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Nenhuma inscrição encontrada com esses filtros.
-          </p>
-        </div>
+        linhas.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Nenhuma inscrição cadastrada ainda. O financeiro passa a ser preenchido
+              conforme os atletas se inscrevem nos eventos.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Link
+                href="/admin/eventos/novo"
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-blue-dark"
+              >
+                <Plus className="h-4 w-4" />
+                Criar primeiro evento
+              </Link>
+              <Link
+                href="/admin/eventos"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:border-brand-blue/40 dark:border-slate-800 dark:text-slate-300"
+              >
+                Ver eventos
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Nenhuma inscrição encontrada com esses filtros.
+            </p>
+            <Button
+              variant="ghost"
+              className="mt-4 text-xs"
+              onClick={() => {
+                setFiltroEvento("todos");
+                setFiltroCategoria("todos");
+                setFiltroStatus("todos");
+                setFiltroForma("todos");
+              }}
+            >
+              Limpar filtros
+            </Button>
+          </div>
+        )
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
           <table className="w-full text-left text-sm">

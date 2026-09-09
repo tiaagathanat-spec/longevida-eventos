@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Globe, Lock, ChevronDown, ChevronUp } from "lucide-react";
+import { Globe, Lock, ChevronDown, ChevronUp, Plus } from "lucide-react";
+import Link from "next/link";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
@@ -133,8 +134,24 @@ export default function PublicacaoResultadosPage() {
       {provasOrdenadas.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Nenhuma prova cadastrada ainda.
+            Nenhuma prova cadastrada ainda. Os resultados aparecem aqui após as provas
+            serem criadas e os tempos lançados.
           </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Link
+              href="/admin/eventos/novo"
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-blue-dark"
+            >
+              <Plus className="h-4 w-4" />
+              Criar evento
+            </Link>
+            <Link
+              href="/admin/eventos"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:border-brand-blue/40 dark:border-slate-800 dark:text-slate-300"
+            >
+              Ver eventos
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-3">

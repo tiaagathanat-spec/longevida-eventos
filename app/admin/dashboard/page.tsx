@@ -20,6 +20,8 @@ import {
   UserCog,
   FileBarChart,
   Settings,
+  Printer,
+  CreditCard,
 } from "lucide-react";
 import { useEventos, inscricoesEstaoAbertas, diasParaDataLimite, EVENTO_STATUS_LABEL } from "@/lib/mock/eventos-store";
 import { useProvas } from "@/lib/mock/provas-store";
@@ -254,7 +256,7 @@ export default function AdminDashboardPage() {
       label: "Check-ins realizados",
       value: String(estatisticas.checkins),
       icon: ClipboardList,
-      link: "/organizacao/eventos",
+      link: "/admin/eventos",
     },
     {
       label: "Resultados p/ revisão",
@@ -271,6 +273,8 @@ export default function AdminDashboardPage() {
     },
   ];
 
+  const eventoAtivo = estatisticas.ativosProximos[0];
+
   const ATALHOS = [
     { label: "Criar evento", icon: Plus, href: "/admin/eventos/novo", cor: "bg-brand-blue/10 text-brand-blue" },
     { label: "Gerenciar inscrições", icon: ClipboardList, href: "/admin/inscricoes", cor: "bg-violet-100 text-violet-600" },
@@ -279,6 +283,22 @@ export default function AdminDashboardPage() {
     { label: "Provas", icon: ListChecks, href: "/admin/eventos", cor: "bg-sky-100 text-sky-700" },
     { label: "Cronometragem", icon: Timer, href: "/organizacao/cronometragem", cor: "bg-orange-100 text-orange-700" },
     { label: "Revisar resultados", icon: Trophy, href: "/admin/publicacao-resultados", cor: "bg-brand-green/10 text-brand-green" },
+    ...(eventoAtivo
+      ? [
+          {
+            label: `Dorsais (A4) · ${eventoAtivo.nome}`,
+            icon: Printer,
+            href: `/admin/eventos/${eventoAtivo.id}/dorsais/imprimir`,
+            cor: "bg-indigo-100 text-indigo-700",
+          },
+          {
+            label: `Cards (A4) · ${eventoAtivo.nome}`,
+            icon: CreditCard,
+            href: `/admin/eventos/${eventoAtivo.id}/cards`,
+            cor: "bg-teal-100 text-teal-700",
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -378,9 +398,18 @@ export default function AdminDashboardPage() {
           </div>
           <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
             {estatisticas.comInscricoes.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
-                Nenhum evento cadastrado ainda.
-              </p>
+              <div className="py-6 text-center">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Nenhum evento cadastrado ainda.
+                </p>
+                <Link
+                  href="/admin/eventos/novo"
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-blue-dark"
+                >
+                  <Plus className="h-4 w-4" />
+                  Criar primeiro evento
+                </Link>
+              </div>
             ) : (
               estatisticas.comInscricoes.map(({ evento, inscritos, abertas }) => (
                 <div key={evento.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
