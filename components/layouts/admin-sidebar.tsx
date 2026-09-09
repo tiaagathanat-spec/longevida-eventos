@@ -15,6 +15,7 @@ import {
   Globe,
   Settings,
   Handshake,
+  Building2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { MenuMobile } from "@/components/layouts/menu-mobile";
@@ -32,6 +33,7 @@ const NAV = [
   { href: "/admin/resultados", label: "Resultados", icon: Trophy },
   { href: "/admin/publicacao-resultados", label: "Publicação de Resultados", icon: Globe },
   { href: "/admin/configuracoes/usuarios", label: "Funcionários", icon: Settings },
+  { href: "/admin/configuracoes/organizacoes", label: "Organizações", icon: Building2 },
 ];
 
 export function AdminSidebar() {

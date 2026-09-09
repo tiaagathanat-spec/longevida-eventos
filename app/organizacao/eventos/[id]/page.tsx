@@ -95,6 +95,8 @@ export default function OrganizacaoEventoPage() {
     (modulo) => !modulo.permissao || permissoes.includes(modulo.permissao)
   );
 
+  const podeModulo = (modulo: ModuloOrganizacao) => permissoes.includes(modulo);
+
   const evento = obterEvento(eventoId);
 
   const resumo = useMemo(() => {
@@ -150,12 +152,29 @@ export default function OrganizacaoEventoPage() {
         </div>
       </header>
 
-      {/* Resumo do evento */}
+      {/* Resumo do evento — cartões também levam ao módulo correspondente */}
       <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <ResumoCard label="Provas" valor={resumo.provasDoEvento.length} />
-        <ResumoCard label="Inscritos confirmados" valor={resumo.inscricoesConfirmadas.length} />
-        <ResumoCard label="Sem tempo lançado" valor={resumo.semTempo.length} alerta />
-        <ResumoCard label="Kits entregues" valor={resumo.kitsEntregues.length} />
+        <ResumoCard
+          label="Provas"
+          valor={resumo.provasDoEvento.length}
+          link={podeModulo("provas") ? `/organizacao/eventos/${eventoId}/provas` : undefined}
+        />
+        <ResumoCard
+          label="Inscritos confirmados"
+          valor={resumo.inscricoesConfirmadas.length}
+          link={podeModulo("inscritos") ? `/organizacao/eventos/${eventoId}/inscritos` : undefined}
+        />
+        <ResumoCard
+          label="Sem tempo lançado"
+          valor={resumo.semTempo.length}
+          alerta
+          link={podeModulo("resultados") ? `/organizacao/eventos/${eventoId}/resultados` : undefined}
+        />
+        <ResumoCard
+          label="Kits entregues"
+          valor={resumo.kitsEntregues.length}
+          link={podeModulo("kits") ? `/organizacao/eventos/${eventoId}/kits` : undefined}
+        />
       </div>
 
       {/* Módulos */}
@@ -182,13 +201,15 @@ function ResumoCard({
   label,
   valor,
   alerta,
+  link,
 }: {
   label: string;
   valor: number;
   alerta?: boolean;
+  link?: string;
 }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+  const conteudo = (
+    <>
       <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</p>
       <p
         className={`mt-1 text-2xl font-semibold ${
@@ -197,6 +218,23 @@ function ResumoCard({
       >
         {valor}
       </p>
+    </>
+  );
+
+  if (link) {
+    return (
+      <Link
+        href={link}
+        className="rounded-2xl border border-slate-200 bg-white p-4 transition-colors hover:border-brand-green/50 dark:border-slate-800 dark:bg-slate-950"
+      >
+        {conteudo}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+      {conteudo}
     </div>
   );
 }

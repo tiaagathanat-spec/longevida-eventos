@@ -73,9 +73,9 @@ export default function AtletaDashboardPage() {
   }
 
   const KPIS = [
-    { label: "Inscrições ativas", value: String(inscricoesAtivas), icon: ClipboardList },
-    { label: "Eventos disponíveis", value: String(eventosPublicados.length), icon: CalendarDays },
-    { label: "Resultados publicados", value: String(meusResultadosPublicados), icon: Trophy },
+    { label: "Inscrições ativas", value: String(inscricoesAtivas), icon: ClipboardList, link: "/portal/minhas-inscricoes" },
+    { label: "Eventos disponíveis", value: String(eventosPublicados.length), icon: CalendarDays, link: "/portal/eventos" },
+    { label: "Resultados publicados", value: String(meusResultadosPublicados), icon: Trophy, link: "/portal/meus-resultados" },
   ];
 
   return (
@@ -107,10 +107,11 @@ export default function AtletaDashboardPage() {
 
       {/* KPIs */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {KPIS.map(({ label, value, icon: Icon }) => (
-          <div
+        {KPIS.map(({ label, value, icon: Icon, link }) => (
+          <Link
             key={label}
-            className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950"
+            href={link}
+            className="rounded-2xl border border-slate-200 bg-white p-5 transition-colors hover:border-brand-blue/40 dark:border-slate-800 dark:bg-slate-950"
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -121,7 +122,7 @@ export default function AtletaDashboardPage() {
               </div>
             </div>
             <p className="mt-3 text-2xl font-semibold text-slate-900 dark:text-white">{value}</p>
-          </div>
+          </Link>
         ))}
       </section>
 
@@ -139,9 +140,17 @@ export default function AtletaDashboardPage() {
           </div>
 
           {minhasInscricoes.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
-              Nenhuma inscrição ainda.
-            </p>
+            <div className="py-6 text-center">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Nenhuma inscrição ainda.
+              </p>
+              <Link
+                href="/portal/eventos"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-blue hover:underline"
+              >
+                Explorar eventos <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           ) : (
             <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
               {minhasInscricoes.slice(0, 5).map((item) => (
@@ -189,9 +198,17 @@ export default function AtletaDashboardPage() {
               </Link>
             </div>
             {meusAtletas.length === 0 ? (
-              <p className="py-4 text-center text-sm text-slate-500 dark:text-slate-400">
-                Nenhum atleta vinculado.
-              </p>
+              <div className="py-4 text-center">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Nenhum atleta vinculado.
+                </p>
+                <Link
+                  href="/portal/meus-atletas"
+                  className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-blue hover:underline"
+                >
+                  Cadastrar atleta <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
             ) : (
               <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
                 {meusAtletas.map((atleta) => (
