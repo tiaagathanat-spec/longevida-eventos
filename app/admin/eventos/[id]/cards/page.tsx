@@ -102,9 +102,9 @@ export default function CardsDoEventoPage() {
     [cards, selecionadas]
   );
 
-  // Folhas de impressão: exatamente 6 cards por página A4 (2x3).
+  // Folhas de impressão: até 10 cards por página A4 (2x5).
   const paginas = useMemo(
-    () => agruparEmFolhas(cardsSelecionados),
+    () => agruparEmFolhas(cardsSelecionados, 10),
     [cardsSelecionados]
   );
 
@@ -167,7 +167,7 @@ export default function CardsDoEventoPage() {
               <p className="text-xs text-slate-400 dark:text-slate-500">
                 {cardsSelecionados.length} de {cards.length} card
                 {cards.length === 1 ? "" : "s"} selecionado
-                {cards.length === 1 ? "" : "s"} para impressão · até 6 por folha A4
+                {cards.length === 1 ? "" : "s"} para impressão · até 10 por folha A4
               </p>
               <div className="flex items-center gap-2">
                 <Button
@@ -239,7 +239,7 @@ export default function CardsDoEventoPage() {
         )}
       </div>
 
-      {/* Impressão: SOMENTE os cards selecionados, 6 por folha A4 (2x3),
+      {/* Impressão: SOMENTE os cards selecionados, até 10 por folha A4 (2x5),
           cada card exatamente 8,5x5,5 cm, sem nenhum outro elemento. */}
       {cardsSelecionados.length > 0 && (
         <div className="hidden print:block">
