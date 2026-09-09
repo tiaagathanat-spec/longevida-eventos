@@ -1,24 +1,37 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Check, Printer } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas, identificacaoDaProva } from "@/lib/mock/provas-store";
-import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
+import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
 import {
   useFaixasNumeracao,
   resolverGrupoNumeracao,
+  type CorFaixa,
 } from "@/lib/mock/faixas-numeracao-store";
 import { useGaleria } from "@/lib/mock/galeria-store";
 import { useQrDaInscricao } from "@/lib/mock/qrcodes-store";
+import { agruparEmFolhas } from "@/lib/impressao/agrupar-em-folhas";
 import { Button } from "@/components/ui/button";
 import { CartaoDorsal } from "@/components/dorsais/cartao-dorsal";
+
+type ItemDorsal = {
+  inscricaoId: string;
+  numero: number;
+  atletaNome: string;
+  categoriaNome: string;
+  cor: CorFaixa;
+  medalhaEntregue: boolean;
+  alimentacaoEntregue: boolean;
+  kitEntregue: boolean;
+};
 
 function formatarData(iso: string) {
   return new Date(iso + "T00:00:00").toLocaleDateString("pt-BR", {
@@ -60,7 +73,7 @@ export default function ImprimirDorsaisPage() {
     imagensDoEvento.find((img) => img.categoria === "capa")?.url ||
     imagensDoEvento.find((img) => img.categoria === "banner")?.url;
 
-  const cartoes = useMemo(() => {
+  const dorsais = useMemo(() => {
     return inscricoes
       .filter((i) => i.eventoId === eventoId && i.status === "confirmada")
       .filter((i) => {
@@ -77,25 +90,54 @@ export default function ImprimirDorsaisPage() {
           atleta
         );
         const dorsal = obterPorInscricao(inscricao.id);
+        if (!dorsal) return null;
         return {
           inscricao,
-          grupoNome: grupo.grupoNome,
-          cor: obterFaixa(eventoId, grupo.grupoId)?.cor ?? "azul",
           dorsal,
+          item: {
+            inscricaoId: inscricao.id,
+            numero: dorsal.numero ?? 0,
+            atletaNome: inscricao.atletaNome,
+            categoriaNome: grupo.grupoNome,
+            cor: obterFaixa(eventoId, grupo.grupoId)?.cor ?? "azul",
+            medalhaEntregue: Boolean(dorsal.medalhaEntregue),
+            alimentacaoEntregue: Boolean(dorsal.alimentacaoEntregue),
+            kitEntregue: Boolean(dorsal.kitEntregue),
+          } satisfies ItemDorsal,
         };
       })
-      .filter((item) => item.dorsal)
-      .sort((a, b) => (a.dorsal!.numero ?? 0) - (b.dorsal!.numero ?? 0));
+      .filter((v): v is NonNullable<typeof v> => v !== null)
+      .sort((a, b) => a.item.numero - b.item.numero);
   }, [inscricoes, provas, categorias, atletas, eventoId, obterCriterio, obterFaixa, obterPorInscricao]);
 
-  // Agrupar em pares (2 dorsais por folha A4 retrato, empilhados)
-  const paginas = useMemo(() => {
-    const resultado: typeof cartoes[] = [];
-    for (let i = 0; i < cartoes.length; i += 2) {
-      resultado.push(cartoes.slice(i, i + 2));
-    }
-    return resultado;
-  }, [cartoes]);
+  // Seleção dos dorsais a imprimir (padrão: todos, quando os dados carregam).
+  const todasIds = useMemo(() => dorsais.map((d) => d.inscricao.id), [dorsais]);
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(() => new Set());
+  const usuarioMexeu = useRef(false);
+  const marcar = (id: string) => {
+    usuarioMexeu.current = true;
+    setSelecionadas((atual) => {
+      const proximas = new Set(atual);
+      if (proximas.has(id)) proximas.delete(id);
+      else proximas.add(id);
+      return proximas;
+    });
+  };
+  useEffect(() => {
+    if (usuarioMexeu.current) return;
+    setSelecionadas(new Set(todasIds));
+  }, [todasIds]);
+
+  const dorsaisSelecionados = useMemo(
+    () => dorsais.filter((d) => selecionadas.has(d.inscricao.id)),
+    [dorsais, selecionadas]
+  );
+
+  // Folhas A4 retrato: 2 dorsais de 19x14,5 cm empilhados (escala 100%).
+  const paginas = useMemo(
+    () => agruparEmFolhas(dorsaisSelecionados, 2),
+    [dorsaisSelecionados]
+  );
 
   if (!evento) {
     return (
@@ -106,114 +148,198 @@ export default function ImprimirDorsaisPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8 print:max-w-none print:px-0 print:py-0">
-      {/* Barra de ação — some ao imprimir */}
-      <div className="mb-6 flex items-center justify-between print:hidden">
-        <Link
-          href={`/admin/eventos/${eventoId}/dorsais`}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </Link>
-        <Button onClick={() => window.print()}>
-          <Printer className="h-4 w-4" />
-          Imprimir
-        </Button>
+    <div className="mx-auto max-w-4xl px-6 py-8">
+      {/* Interface da aplicação — oculta na impressão */}
+      <div className="print:hidden">
+        <div className="mb-6 flex items-center justify-between">
+          <Link
+            href={`/admin/eventos/${eventoId}/dorsais`}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Link>
+          <Button
+            onClick={() => window.print()}
+            disabled={dorsaisSelecionados.length === 0}
+          >
+            <Printer className="h-4 w-4" />
+            Imprimir dorsais (A4)
+          </Button>
+        </div>
+
+        {dorsais.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Nenhum dorsal atribuído ainda para este evento.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                {dorsaisSelecionados.length} de {dorsais.length} dorsal
+                {dorsais.length === 1 ? "" : "is"} selecionado
+                {dorsais.length === 1 ? "" : "s"} para impressão · 2 por folha A4,
+                tamanho real 19×14,5 cm
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  className="px-3 py-2 text-xs"
+                  onClick={() => {
+                    usuarioMexeu.current = true;
+                    setSelecionadas(new Set(todasIds));
+                  }}
+                >
+                  Selecionar todos
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="px-3 py-2 text-xs"
+                  onClick={() => {
+                    usuarioMexeu.current = true;
+                    setSelecionadas(new Set());
+                  }}
+                >
+                  Limpar seleção
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-4">
+              {dorsais.map(({ inscricao, item }) => {
+                const marcado = selecionadas.has(inscricao.id);
+                return (
+                  <div
+                    key={inscricao.id}
+                    role="checkbox"
+                    aria-checked={marcado}
+                    tabIndex={0}
+                    onClick={() => marcar(inscricao.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        marcar(inscricao.id);
+                      }
+                    }}
+                    className={`relative cursor-pointer rounded-xl transition-shadow ${
+                      marcado
+                        ? "ring-2 ring-brand-green ring-offset-2"
+                        : "ring-2 ring-transparent hover:ring-slate-300"
+                    }`}
+                  >
+                    <span
+                      className={`absolute -left-1.5 -top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full text-white shadow-md ${
+                        marcado ? "bg-brand-green" : "bg-slate-300"
+                      }`}
+                    >
+                      {marcado ? <Check className="h-4 w-4" strokeWidth={3} /> : null}
+                    </span>
+                    <div className="dorsal-preview">
+                      <CartaoComQr
+                        inscricaoId={inscricao.id}
+                        numero={item.numero}
+                        atletaNome={item.atletaNome}
+                        categoriaNome={item.categoriaNome}
+                        eventoNome={evento.nome}
+                        dataEvento={formatarData(evento.data)}
+                        capaUrl={capa}
+                        logoUrl={logo}
+                        cor={item.cor}
+                        medalhaEntregue={item.medalhaEntregue}
+                        alimentacaoEntregue={item.alimentacaoEntregue}
+                        kitEntregue={item.kitEntregue}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
-      {cartoes.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-950 print:hidden">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Nenhum dorsal atribuído ainda para este evento.
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center gap-0">
+      {/* Impressão: SOMENTE os dorsais selecionados, 2 por folha A4
+          retrato, cada dorsal exatamente 19x14,5 cm (escala 100%), sem
+          nenhum outro elemento. */}
+      {dorsaisSelecionados.length > 0 && (
+        <div className="hidden print:block">
           {paginas.map((pagina, pageIdx) => (
-            <div
-              key={pageIdx}
-              className="dorsais-pagina-imprimir break-inside-avoid"
-              style={{ height: "29.7cm", width: "21cm" }}
-            >
-              <div
-                className="flex flex-col items-center justify-between"
-                style={{ height: "29.7cm", width: "21cm" }}
-              >
-                {/* Dorsal 1 */}
-                <div
-                  className="dorsal-wrapper shrink-0"
-                  style={{ width: "19cm", height: "14.5cm" }}
-                >
-                  {pagina[0] && (
-                    <CartaoComQr
-                      inscricaoId={pagina[0].inscricao.id}
-                      numero={pagina[0].dorsal!.numero}
-                      atletaNome={nomeDaInscricao(pagina[0].inscricao)}
-                      categoriaNome={pagina[0].grupoNome}
-                      eventoNome={evento.nome}
-                      dataEvento={formatarData(evento.data)}
-                      capaUrl={capa}
-                      logoUrl={logo}
-                      cor={pagina[0].cor}
-                      medalhaEntregue={pagina[0].dorsal!.medalhaEntregue}
-                      alimentacaoEntregue={pagina[0].dorsal!.alimentacaoEntregue}
-                      kitEntregue={pagina[0].dorsal!.kitEntregue}
-                    />
-                  )}
+            <div key={pageIdx} className="folha-dorsais">
+              {pagina.map(({ inscricao, item }) => (
+                <div key={inscricao.id} className="dorsal-impressao">
+                  <CartaoComQr
+                    inscricaoId={inscricao.id}
+                    numero={item.numero}
+                    atletaNome={item.atletaNome}
+                    categoriaNome={item.categoriaNome}
+                    eventoNome={evento.nome}
+                    dataEvento={formatarData(evento.data)}
+                    capaUrl={capa}
+                    logoUrl={logo}
+                    cor={item.cor}
+                    medalhaEntregue={item.medalhaEntregue}
+                    alimentacaoEntregue={item.alimentacaoEntregue}
+                    kitEntregue={item.kitEntregue}
+                  />
                 </div>
-                {/* Dorsal 2 */}
-                <div
-                  className="dorsal-wrapper shrink-0"
-                  style={{ width: "19cm", height: "14.5cm" }}
-                >
-                  {pagina[1] && (
-                    <CartaoComQr
-                      inscricaoId={pagina[1].inscricao.id}
-                      numero={pagina[1].dorsal!.numero}
-                      atletaNome={nomeDaInscricao(pagina[1].inscricao)}
-                      categoriaNome={pagina[1].grupoNome}
-                      eventoNome={evento.nome}
-                      dataEvento={formatarData(evento.data)}
-                      capaUrl={capa}
-                      logoUrl={logo}
-                      cor={pagina[1].cor}
-                      medalhaEntregue={pagina[1].dorsal!.medalhaEntregue}
-                      alimentacaoEntregue={pagina[1].dorsal!.alimentacaoEntregue}
-                      kitEntregue={pagina[1].dorsal!.kitEntregue}
-                    />
-                  )}
-                </div>
-              </div>
+              ))}
             </div>
           ))}
         </div>
       )}
 
-      {/* Impressão: A4 retrato com 2 dorsais por folha (19 cm x 14,5 cm
-           cada, empilhados verticalmente). */}
       <style jsx global>{`
+        .dorsal-preview {
+          width: 11.4cm;
+          height: 8.7cm;
+        }
         @media print {
           @page {
             size: A4 portrait;
             margin: 0;
           }
-          .dorsais-pagina-imprimir {
-            height: 29.7cm;
+          html,
+          body {
+            margin: 0;
+            background: #fff !important;
+          }
+          * {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          aside {
+            display: none !important;
+          }
+          div.h-1 {
+            display: none !important;
+          }
+          .folha-dorsais {
             width: 21cm;
-            page-break-after: always;
+            height: 29.7cm;
+            box-sizing: border-box;
             overflow: hidden;
-          }
-          .dorsais-pagina-imprimir:last-child {
-            page-break-after: auto;
-          }
-          .dorsal-wrapper {
-            width: 19cm;
-            height: 14.5cm;
+            page-break-after: always;
+            page-break-inside: avoid;
+            break-inside: avoid;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
+            gap: 0.35cm;
+            background: #fff;
+          }
+          .folha-dorsais:last-child {
+            page-break-after: auto;
+          }
+          .dorsal-impressao {
+            width: 19cm;
+            height: 14.5cm;
+            flex-shrink: 0;
+            display: flex;
+            align-items: stretch;
+            justify-content: stretch;
           }
         }
       `}</style>
