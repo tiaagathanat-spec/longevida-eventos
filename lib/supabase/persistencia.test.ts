@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   camelParaSnake,
   ehErroDeRede,
+  ehErroSemRecursos,
   limparJson,
   snakeParaCamel,
 } from "@/lib/supabase/persistencia";
@@ -117,5 +118,26 @@ describe("ehErroDeRede", () => {
     expect(ehErroDeRede(undefined)).toBe(false);
     expect(ehErroDeRede(null)).toBe(false);
     expect(ehErroDeRede({})).toBe(false);
+  });
+
+  it("não trata esgotamento de recursos como rede (evita loop de retry)", () => {
+    expect(ehErroDeRede({ message: "net::ERR_INSUFFICIENT_RESOURCES" })).toBe(false);
+    expect(ehErroDeRede(new Error("undefined net::ERR_INSUFFICIENT_RESOURCES"))).toBe(false);
+  });
+});
+
+describe("ehErroSemRecursos", () => {
+  it("detecta net::ERR_INSUFFICIENT_RESOURCES", () => {
+    expect(ehErroSemRecursos({ message: "net::ERR_INSUFFICIENT_RESOURCES" })).toBe(true);
+    expect(ehErroSemRecursos(new Error("undefined net::ERR_INSUFFICIENT_RESOURCES"))).toBe(true);
+  });
+
+  it("detecta recusa por excesso de requisições do servidor", () => {
+    expect(ehErroSemRecursos({ message: "Too many requests" })).toBe(true);
+  });
+
+  it("rejeita falhas de rede comuns", () => {
+    expect(ehErroSemRecursos(new TypeError("Failed to fetch"))).toBe(false);
+    expect(ehErroSemRecursos({ message: "fetch failed" })).toBe(false);
   });
 });

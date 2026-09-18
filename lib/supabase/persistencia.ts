@@ -48,7 +48,24 @@ export function camelParaSnake(linha: Linha): Linha {
 // servidor (403/401/422…), que têm `code` e resposta HTTP. Uma queda de
 // rede é transitória: o dado deve ir para a fila offline e a operação ser
 // repetida, nunca mostrar um erro cru ao usuário.
+export function ehErroSemRecursos(erro: unknown): boolean {
+  const mensagem =
+    erro instanceof Error
+      ? erro.message
+      : String((erro as { message?: unknown })?.message ?? "");
+  // Escassez de recursos do NAVEGADOR (limite de conexões por host, abas,
+  // memória — net::ERR_INSUFFICIENT_RESOURCES) ou rejeição por pressão do
+  // servidor (429 too many requests). NÃO é uma falha de rede transitória:
+  // na maioria das vezes é o PRÓPRIO RETRY que provoca a pressão. Re-tentar
+  // em rajada só piora; o dado não deve ser enfileirado nem repetido em
+  // loop — exponha o aviso e aguarde a recarga.
+  return /ERR_INSUFFICIENT_RESOURCES|insufficient resource|too many requests/i.test(
+    mensagem
+  );
+}
+
 export function ehErroDeRede(erro: unknown): boolean {
+  if (ehErroSemRecursos(erro)) return false;
   const mensagem =
     erro instanceof Error
       ? erro.message
@@ -135,6 +152,10 @@ export async function carregar<T>(
   // Falha de rede (breve queda de conexão): espera um instante e tenta de
   // novo uma vez antes de desistir — a maioria das quedas de navegador é
   // momentânea e o retry evita a tela "não foi possível carregar".
+  // Gate global anti-rajada: sem ele, os ~17 stores do layout tentariam o
+  // retry ao MESMO tempo logo após uma queda, estourando o limite de
+  // conexões do navegador (net::ERR_INSUFFICIENT_RESOURCES).
+  if (!rotinaAutomaticaPodeRodar(1500)) return null;
   await new Promise((resolver) => setTimeout(resolver, 800));
   try {
     return await tentar();
@@ -220,6 +241,13 @@ export async function gravarLinhas<T>(
         // retry automático recupera quando a conexão voltar. Só refresh
         // inválido de verdade (token/sessão expirado) pede novo login.
         if (ehErroDeRede(refreshError)) {
+          if (ehErroSemRecursos(refreshError)) {
+            return {
+              ok: false,
+              retentavel: false,
+              motivo: `Muitas solicitações abertas ao salvar em ${tabela} (o navegador esgotou recursos). Recarregue a página.`,
+            };
+          }
           for (const linha of linhas) {
             enfileirarFila(tabela, camelParaSnake(limparJson(linha as Linha)));
           }
@@ -255,6 +283,17 @@ export async function gravarLinhas<T>(
         // devolvê-la em vez de lançar): guarda na fila offline em vez de
         // abortar com mensagem crua — é a mesma garantia do bloco catch.
         if (ehErroDeRede(error)) {
+          if (ehErroSemRecursos(error)) {
+            console.warn(
+              `[persistencia] recursos esgotados ao gravar ${tabela}:`,
+              error.message
+            );
+            return {
+              ok: false,
+              retentavel: false,
+              motivo: `Muitas solicitações abertas ao salvar em ${tabela} (o navegador esgotou recursos). Recarregue a página.`,
+            };
+          }
           console.warn(`[persistencia] sem conexão ao gravar ${tabela}:`, error.message);
           enfileirarFila(tabela, camelParaSnake(limparJson(linha as Linha)));
           redeFalhou = true;
@@ -295,6 +334,13 @@ export async function gravarLinhas<T>(
       : { ok: true };
   } catch (err) {
     console.warn(`[persistencia] falha ao gravar ${tabela}:`, err);
+    if (ehErroSemRecursos(err)) {
+      return {
+        ok: false,
+        retentavel: false,
+        motivo: `Muitas solicitações abertas ao salvar em ${tabela} (o navegador esgotou recursos). Recarregue a página.`,
+      };
+    }
     // Falha de rede (a chamada lançou): guarda as linhas na fila offline
     // para reconciliar quando a conexão voltar. O upsert é idempotente,
     // então repetir não duplica. Erros de permissão/dados não caem aqui
@@ -309,6 +355,20 @@ export async function gravarLinhas<T>(
       motivo: `Sem conexão com o servidor ao salvar em ${tabela}. Suas alterações foram guardadas para sincronizar.`,
     };
   }
+}
+
+// Ponto único de contenção do retry AUTOMÁTICO. Cada store do layout raiz
+// (~17) monta seu próprio intervalo de 15s; sem este gate, uma queda de
+// rede dispararia dezenas de tentativas simultâneas a cada ciclo — o
+// navegador estoura o limite de conexões por host
+// (net::ERR_INSUFFICIENT_RESOURCES) e o processo vira um loop que se
+// retroalimenta. Com o gate, no máximo UMA rotina global avança por janela.
+let ultimaRotinaAutomatica = 0;
+export function rotinaAutomaticaPodeRodar(janelaMs = 10000): boolean {
+  const agora = Date.now();
+  if (agora - ultimaRotinaAutomatica < janelaMs) return false;
+  ultimaRotinaAutomatica = agora;
+  return true;
 }
 
 // Reconcilia a fila offline: tenta reenviar cada item pendente e remove
@@ -335,6 +395,17 @@ export async function processarFilaOffline(): Promise<void> {
           removerDaFila(item.tabela, item.linha.id);
           continue;
         }
+        if (ehErroSemRecursos(error)) {
+          // Escassez de recursos navegador/servidor: NÃO é permanente (o
+          // dado ainda pode sincronizar numa janela com recursos livres) e
+          // não deve ser descartado. Mantém na fila; o retry global
+          // (rárico) tenta de novo mais tarde.
+          console.warn(
+            `[persistencia] recursos esgotados ao sincronizar (${item.tabela}):`,
+            error.message
+          );
+          continue;
+        }
         if (!ehErroDeRede(error)) {
           // Erro PERMANENTE (constraint, permissão, sessão inválida):
           // re-tentar para sempre é inútil e gera ruído. Remove da fila e
@@ -346,8 +417,16 @@ export async function processarFilaOffline(): Promise<void> {
           removerDaFila(item.tabela, item.linha.id);
         }
         // Erros de rede: mantém na fila para a próxima tentativa.
-      } catch {
-        // Rede indisponível: mantém na fila.
+      } catch (erroInterno) {
+        // Rede indisponível ou escassez de recursos: mantém na fila.
+        if (ehErroSemRecursos(erroInterno)) {
+          console.warn(
+            `[persistencia] recursos esgotados ao sincronizar (${item.tabela}):`,
+            erroInterno instanceof Error
+              ? erroInterno.message
+              : String(erroInterno)
+          );
+        }
       }
     }
   } finally {
@@ -535,6 +614,11 @@ export function usePersistencia<T>(
   // permanentes não entram aqui (são resolvidos pela próxima edição).
   useEffect(() => {
     const requisicao = setInterval(() => {
+      // Gate global: os ~17 stores montam intervalos próprios; sem ele
+      // uma queda de rede dispararia dezenas de tentativas simultâneas a
+      // cada 15s — o navegador estoura o limite de conexões
+      // (net::ERR_INSUFFICIENT_RESOURCES) e o app entra em loop.
+      if (!rotinaAutomaticaPodeRodar()) return;
       if (totalPendentesFila() > 0) {
         processarFilaOffline();
       }

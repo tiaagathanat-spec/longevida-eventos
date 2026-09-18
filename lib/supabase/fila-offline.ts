@@ -66,7 +66,23 @@ export function notificarMudancaFila() {
 
 export function enfileirarFila(tabela: string, linha: Record<string, unknown>) {
   const atual = lerFilaOffline();
-  atual.push({ tabela, linha, enfileiradoEm: new Date().toISOString() });
+  const id = (linha as { id?: unknown }).id;
+  // Não duplica: se já existe linha pendente da mesma tabela com o mesmo
+  // id, atualiza o payload em vez de empilhar outra — o retry de rede
+  // (a cada tentativa) re-enfileiraria as mesmas linhas e a fila viraria
+  // um depósito que sobrecarrega a reconciliação.
+  const existente = atual.find(
+    (i) => i.tabela === tabela && (i.linha as { id?: unknown }).id === id
+  );
+  if (existente) {
+    existente.linha = linha;
+    existente.enfileiradoEm = new Date().toISOString();
+  } else {
+    atual.push({ tabela, linha, enfileiradoEm: new Date().toISOString() });
+  }
+  // Teto de segurança: além disso descarta os mais antigos para a fila não
+  // crescer sem limite.
+  if (atual.length > 400) atual.splice(0, atual.length - 400);
   salvarFila(atual);
   notificarMudancaFila();
 }

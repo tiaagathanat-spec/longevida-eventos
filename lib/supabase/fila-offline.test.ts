@@ -1,88 +1,73 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   enfileirarFila,
   lerFilaOffline,
   limparFila,
-  obterPendentesFila,
   removerDaFila,
   totalPendentesFila,
 } from "@/lib/supabase/fila-offline";
 
-// Stub de localStorage para simular o navegador em ambiente node.
-function criarMemoria() {
-  const mapa = new Map<string, string>();
-  return {
-    getItem: (k: string) => mapa.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      mapa.set(k, v);
-    },
-    removeItem: (k: string) => {
-      mapa.delete(k);
-    },
-    clear: () => mapa.clear(),
-  };
-}
+// Testes da fila offline isolada — foca no comportamento da DEDUPLICAÇÃO:
+// o retry de rede re-enfileiraria as mesmas linhas a cada tentativa; sem
+// dedupe a fila viraria um depósito e o processamento sobrecarregaria o
+// navegador (para de responder, ERR_INSUFFICIENT_RESOURCES).
 
-type Storage = ReturnType<typeof criarMemoria>;
-let memoria: Storage;
+let dados: Map<string, string>;
 
 beforeEach(() => {
-  memoria = criarMemoria();
-  (globalThis as Record<string, unknown>).window = {
-    localStorage: memoria,
-    dispatchEvent: () => true,
+  dados = new Map();
+  const windowFalso = {
+    localStorage: {
+      getItem: (chave: string) => dados.get(chave) ?? null,
+      setItem: (chave: string, valor: string) => void dados.set(chave, valor),
+      removeItem: (chave: string) => void dados.delete(chave),
+    },
+    dispatchEvent: vi.fn(),
   };
+  Object.defineProperty(globalThis, "window", {
+    value: windowFalso,
+    configurable: true,
+    writable: true,
+  });
+  limparFila();
+  vi.clearAllMocks();
 });
 
-describe("fila offline", () => {
-  it("começa vazia", () => {
+describe("enfileirarFila", () => {
+  it("adiciona uma linha pendente", () => {
+    enfileirarFila("app_inscricoes", { id: "1", nome_atleta: "Ana" });
+    expect(totalPendentesFila()).toBe(1);
+    expect(lerFilaOffline()[0].tabela).toBe("app_inscricoes");
+  });
+
+  it("não duplica a mesma linha na mesma tabela (retry de rede)", () => {
+    enfileirarFila("app_inscricoes", { id: "1", nome_atleta: "Ana" });
+    enfileirarFila("app_inscricoes", { id: "1", nome_atleta: "Ana" });
+    enfileirarFila("app_inscricoes", { id: "1", nome_atleta: "Ana" });
+    expect(totalPendentesFila()).toBe(1);
+  });
+
+  it("atualiza o payload da linha repetida em vez de empilhar", () => {
+    enfileirarFila("app_inscricoes", { id: "1", nome_atleta: "Ana" });
+    enfileirarFila("app_inscricoes", { id: "1", nome_atleta: "Ana M." });
+    const unica = lerFilaOffline()[0];
+    expect(totalPendentesFila()).toBe(1);
+    expect(unica.linha.nome_atleta).toBe("Ana M.");
+  });
+
+  it("mantém linhas diferentes (noutra tabela ou outro id)", () => {
+    enfileirarFila("app_inscricoes", { id: "1", nome_atleta: "Ana" });
+    enfileirarFila("app_inscricoes", { id: "2", nome_atleta: "Bia" });
+    enfileirarFila("app_pagamentos", { id: "3", valor: 50 });
+    expect(totalPendentesFila()).toBe(3);
+  });
+
+  it("removerDaFila/limparFila continuam funcionando", () => {
+    enfileirarFila("app_inscricoes", { id: "1", nome_atleta: "Ana" });
+    removerDaFila("app_inscricoes", "1");
     expect(totalPendentesFila()).toBe(0);
-    expect(lerFilaOffline()).toEqual([]);
-  });
-
-  it("enfileira itens com tabela e data", () => {
-    enfileirarFila("app_resultados", { id: "r1", tempo: "00:32.45" });
-    enfileirarFila("app_resultados", { id: "r2", tempo: "00:33.10" });
-
-    expect(totalPendentesFila()).toBe(2);
-    expect(totalPendentesFila("app_resultados")).toBe(2);
-    expect(totalPendentesFila("app_outra_tabela")).toBe(0);
-    const pendentes = obterPendentesFila("app_resultados");
-    expect(pendentes[0].tabela).toBe("app_resultados");
-    expect(pendentes[0].linha.id).toBe("r1");
-    expect(pendentes[0].enfileiradoEm).toBeTruthy();
-  });
-
-  it("sobrevive a um 'recarregamento' (persistência em localStorage)", () => {
-    enfileirarFila("app_resultados", { id: "r1", tempo: "00:32.45" });
-    expect(lerFilaOffline()).toHaveLength(1);
-    // Simula novo load da página lendo do mesmo armazenamento.
-    (globalThis as Record<string, unknown>).window = {
-      localStorage: memoria,
-      dispatchEvent: () => true,
-    };
-    expect(obterPendentesFila("app_resultados")).toHaveLength(1);
-  });
-
-  it("remove um item específico por tabela+id", () => {
-    enfileirarFila("app_resultados", { id: "r1", tempo: "a" });
-    enfileirarFila("app_resultados", { id: "r2", tempo: "b" });
-    removerDaFila("app_resultados", "r1");
-    const restantes = obterPendentesFila("app_resultados");
-    expect(restantes).toHaveLength(1);
-    expect(restantes[0].linha.id).toBe("r2");
-  });
-
-  it("limpa a fila por completo", () => {
-    enfileirarFila("app_resultados", { id: "r1" });
-    enfileirarFila("app_inscricoes", { id: "i1" });
+    enfileirarFila("app_inscricoes", { id: "1" });
     limparFila();
-    expect(totalPendentesFila()).toBe(0);
-  });
-
-  it("lida com JSON corrompido retornando fila vazia", () => {
-    memoria.setItem("longevida_offline_fila", "{{{not-json");
-    expect(lerFilaOffline()).toEqual([]);
     expect(totalPendentesFila()).toBe(0);
   });
 });

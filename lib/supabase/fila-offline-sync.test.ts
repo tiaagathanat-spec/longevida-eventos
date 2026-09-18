@@ -171,6 +171,17 @@ describe("processarFilaOffline", () => {
 
     expect(mocks.fila.removerDaFila).not.toHaveBeenCalled();
   });
+
+  it("mantém o item na fila em escassez de recursos (não descarta dado)", async () => {
+    mocks.fila.obterPendentesFila.mockReturnValue([itemPendente()]);
+    mocks.upsert.mockResolvedValue({
+      error: { message: "net::ERR_INSUFFICIENT_RESOURCES" },
+    });
+
+    await processarFilaOffline();
+
+    expect(mocks.fila.removerDaFila).not.toHaveBeenCalled();
+  });
 });
 
 describe("tentarReconciliarAgora", () => {
