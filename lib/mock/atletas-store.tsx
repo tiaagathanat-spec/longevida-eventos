@@ -11,6 +11,7 @@
 
 import { createContext, useContext, useMemo, useState, ReactNode } from "react";
 import { usePersistencia } from "@/lib/supabase/persistencia";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 export type Atleta = {
   id: string;
@@ -69,12 +70,25 @@ export function AtletasProvider({ children }: { children: ReactNode }) {
       erro,
       obterPorId: (id) => atletas.find((a) => a.id === id),
       criar: (dados) => {
-        const novo: Atleta = { id: gerarId(), ...dados };
+        const dadosNormalizados = {
+          ...dados,
+          nome: normalizarNomePessoa(dados.nome),
+          responsavelNome: normalizarNomePessoa(dados.responsavelNome),
+          contatoEmergenciaNome: normalizarNomePessoa(dados.contatoEmergenciaNome ?? ""),
+          responsavelTelefone: dados.responsavelTelefone,
+        };
+        const novo: Atleta = { id: gerarId(), ...dadosNormalizados };
         setAtletas((atual) => [novo, ...atual]);
         return novo;
       },
       atualizar: (id, dados) => {
-        setAtletas((atual) => atual.map((a) => (a.id === id ? { id, ...dados } : a)));
+        const dadosNormalizados = { ...dados };
+        if (dadosNormalizados.nome) dadosNormalizados.nome = normalizarNomePessoa(dadosNormalizados.nome);
+        if (dadosNormalizados.responsavelNome) dadosNormalizados.responsavelNome = normalizarNomePessoa(dadosNormalizados.responsavelNome);
+        if (dadosNormalizados.contatoEmergenciaNome) dadosNormalizados.contatoEmergenciaNome = normalizarNomePessoa(dadosNormalizados.contatoEmergenciaNome);
+        setAtletas((atual) =>
+          atual.map((a) => (a.id === id ? { id, ...dadosNormalizados } : a))
+        );
       },
       excluir: (id) => {
         setAtletas((atual) => atual.filter((a) => a.id !== id));

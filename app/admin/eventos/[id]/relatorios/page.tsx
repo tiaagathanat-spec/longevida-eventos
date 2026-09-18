@@ -15,6 +15,7 @@ import { useAtletas } from "@/lib/mock/atletas-store";
 import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 // Módulo Relatórios.
 //
@@ -123,7 +124,7 @@ export default function RelatoriosPage() {
             const prova = provas.find((p) => p.id === i.provaId);
             return {
               Peito: peitoDe(i),
-              Nome: i.atletaNome,
+              Nome: normalizarNomePessoa(i.atletaNome),
               Modalidade: nomeModalidade(prova?.modalidadeId ?? ""),
               Categoria: nomeCategoria(prova?.categoriaId ?? ""),
               Status: i.status,
@@ -141,7 +142,7 @@ export default function RelatoriosPage() {
             const prova = provas.find((p) => p.id === i.provaId);
             return {
               Peito: peitoDe(i),
-              Nome: i.atletaNome,
+              Nome: normalizarNomePessoa(i.atletaNome),
               Modalidade: nomeModalidade(prova?.modalidadeId ?? ""),
               Status: i.status,
             };
@@ -151,7 +152,7 @@ export default function RelatoriosPage() {
       case "inscritos_prova": {
         const linhasProva = inscritosDoEvento
           .filter((i) => i.provaId === provaId)
-          .map((i) => ({ Peito: peitoDe(i), Nome: i.atletaNome, Status: i.status }));
+          .map((i) => ({ Peito: peitoDe(i), Nome: normalizarNomePessoa(i.atletaNome), Status: i.status }));
         return { colunas: ["Peito", "Nome", "Status"], linhas: linhasProva };
       }
       case "checkin": {
@@ -161,7 +162,7 @@ export default function RelatoriosPage() {
             const prova = provas.find((p) => p.id === i.provaId);
             return {
               Peito: peitoDe(i),
-              Nome: i.atletaNome,
+              Nome: normalizarNomePessoa(i.atletaNome),
               Categoria: nomeCategoria(prova?.categoriaId ?? ""),
               Presente: "☐",
             };
@@ -175,7 +176,7 @@ export default function RelatoriosPage() {
             const prova = provas.find((p) => p.id === i.provaId);
             return {
               Peito: peitoDe(i),
-              Nome: i.atletaNome,
+              Nome: normalizarNomePessoa(i.atletaNome),
               Categoria: nomeCategoria(prova?.categoriaId ?? ""),
               "Kit entregue": "☐",
             };
@@ -189,7 +190,7 @@ export default function RelatoriosPage() {
             const prova = provas.find((p) => p.id === i.provaId);
             return {
               Peito: peitoDe(i),
-              Nome: i.atletaNome,
+              Nome: normalizarNomePessoa(i.atletaNome),
               Categoria: nomeCategoria(prova?.categoriaId ?? ""),
             };
           }),

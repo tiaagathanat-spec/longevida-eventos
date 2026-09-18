@@ -3,7 +3,10 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { MailWarning, ShieldAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { eErroEmailNaoConfirmado } from "@/lib/auth-confirmacao";
+import { AguardandoConfirmacaoEmail } from "@/components/auth/aguardando-confirmacao";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LogoLongevida } from "@/components/brand/logo-longevida";
@@ -14,10 +17,14 @@ export default function LoginPage() {
   const [senha, setSenha] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Quando o Supabase bloqueia o login por e-mail não confirmado, guardamos
+  // o e-mail aqui para exibir o painel de confirmação + reenvio.
+  const [naoConfirmadoEmail, setNaoConfirmadoEmail] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErro(null);
+    setNaoConfirmadoEmail(null);
 
     if (!email || !senha) {
       setErro("Preencha e-mail e senha para continuar.");
@@ -33,7 +40,12 @@ export default function LoginPage() {
       });
 
       if (error) {
-        setErro(mensagemErro(error.message, email));
+        if (eErroEmailNaoConfirmado(error.message)) {
+          setErro(null);
+          setNaoConfirmadoEmail(email.trim());
+          return;
+        }
+        setErro(mensagemErro(error.message));
         return;
       }
 
@@ -61,12 +73,12 @@ export default function LoginPage() {
     }
   }
 
-  function mensagemErro(mensagem: string, email: string) {
+  function mensagemErro(mensagem: string) {
     const m = mensagem.toLowerCase();
-    if (m.includes("not confirmed") || m.includes("confirm")) {
-      return `Seu e-mail (${email}) ainda não foi confirmado. Abra o e-mail de confirmação enviado no cadastro e clique no link — verifique também a caixa de spam/lixo eletrônico.`;
+    if (m.includes("invalid login") || m.includes("invalid_credentials")) {
+      return "E-mail ou senha incorretos. Tente novamente.";
     }
-    return "E-mail ou senha incorretos. Tente novamente.";
+    return "Não foi possível entrar agora. Verifique os dados e tente novamente.";
   }
 
   async function destinoPorPerfil(supabase: ReturnType<typeof createClient>, usuarioId: string) {
@@ -152,6 +164,30 @@ export default function LoginPage() {
             Acesse sua conta para ver eventos, inscrições e resultados.
           </p>
 
+          {naoConfirmadoEmail && (
+            <div className="mt-6">
+              <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-300">
+                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  <strong className="font-semibold">Acesso bloqueado:</strong>{" "}
+                  {email || naoConfirmadoEmail}. Confirme o e-mail antes de entrar.
+                </span>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950">
+                <div className="flex items-start gap-2 rounded-lg bg-brand-blue/5 p-3 text-sm text-brand-blue">
+                  <MailWarning className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    Confirmamos que o seu e-mail <strong>{naoConfirmadoEmail}</strong> ainda não foi
+                    confirmado.
+                  </span>
+                </div>
+                <div className="mt-4">
+                  <AguardandoConfirmacaoEmail email={naoConfirmadoEmail} variante="login" />
+                </div>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} noValidate className="mt-8 flex flex-col gap-4">
             <Input
               id="email"
@@ -160,7 +196,10 @@ export default function LoginPage() {
               placeholder="voce@exemplo.com"
               autoComplete="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setNaoConfirmadoEmail(null);
+              }}
             />
 
             <div className="flex flex-col gap-1.5">

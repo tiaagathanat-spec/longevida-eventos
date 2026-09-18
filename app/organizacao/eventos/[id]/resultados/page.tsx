@@ -17,6 +17,7 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 export default function LancarResultadosPage() {
   const params = useParams<{ id: string }>();
@@ -173,7 +174,7 @@ export default function LancarResultadosPage() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-slate-900 dark:text-white">
-                          {nomeDaInscricao(inscricao)}
+                          {normalizarNomePessoa(nomeDaInscricao(inscricao))}
                         </p>
                         <p className="mt-0.5 flex items-center gap-1 text-[11px] font-bold">
                           {liberado ? (

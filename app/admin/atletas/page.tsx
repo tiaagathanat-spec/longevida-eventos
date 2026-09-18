@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, FormEvent } from "react";
-import { Plus, Pencil, Trash2, Search, User, Users } from "lucide-react";
+import { useMemo, useState, FormEvent, useEffect } from "react";
+import { Plus, Pencil, Trash2, Search, User, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAtletas, Atleta } from "@/lib/mock/atletas-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useEventos } from "@/lib/mock/eventos-store";
@@ -9,6 +9,7 @@ import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useTiposProva, integrantesDaProva } from "@/lib/mock/tipos-prova-store";
 import { useInscricoes, InscricaoStatus } from "@/lib/mock/inscricoes-store";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -102,9 +103,18 @@ export default function AtletasPage() {
 
   const atletasFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    if (!termo) return atletas;
-    return atletas.filter((a) => a.nome.toLowerCase().includes(termo));
+    const filtrados = termo ? atletas.filter((a) => a.nome.toLowerCase().includes(termo)) : atletas;
+    return filtrados.sort((a, b) => a.nome.localeCompare(b.nome));
   }, [atletas, busca]);
+
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const ITENS_POR_PAGINA = 15;
+
+  useEffect(() => { setPaginaAtual(1); }, [atletasFiltrados.length]);
+
+  const atletasPaginados = useMemo(() => {
+    return atletasFiltrados.slice((paginaAtual - 1) * ITENS_POR_PAGINA, paginaAtual * ITENS_POR_PAGINA);
+  }, [atletasFiltrados, paginaAtual]);
 
   const atletaParaExcluir = atletas.find((a) => a.id === excluindoId);
 
@@ -196,7 +206,7 @@ export default function AtletasPage() {
     if (!validar()) return;
 
     const dadosAtleta: Omit<Atleta, "id"> = {
-      nome: form.nome.trim(),
+      nome: normalizarNomePessoa(form.nome),
       dataNascimento: form.dataNascimento,
       categoriaId: form.categoriaId,
       genero: form.genero,
@@ -288,8 +298,9 @@ export default function AtletasPage() {
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {atletasFiltrados.map((atleta) => {
+        <>
+          <div className="flex flex-col gap-3">
+            {atletasPaginados.map((atleta) => {
             const idade = calcularIdade(atleta.dataNascimento);
             return (
               <div
@@ -302,13 +313,13 @@ export default function AtletasPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-slate-900 dark:text-white">
-                      {atleta.nome}
+                      {normalizarNomePessoa(atleta.nome)}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {idade !== null ? `${idade} anos` : "Idade não informada"} ·{" "}
                       {nomeCategoria(atleta.categoriaId)}
                       {atleta.responsavelNome
-                        ? ` · Responsável: ${atleta.responsavelNome}`
+                        ? ` · Responsável: ${normalizarNomePessoa(atleta.responsavelNome)}`
                         : ""}
                     </p>
                   </div>
@@ -335,6 +346,21 @@ export default function AtletasPage() {
             );
           })}
         </div>
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <span className="text-sm text-slate-500">
+            Mostrando {(paginaAtual - 1) * ITENS_POR_PAGINA + 1}–{Math.min(paginaAtual * ITENS_POR_PAGINA, atletasFiltrados.length)} de {atletasFiltrados.length} atletas
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" disabled={paginaAtual <= 1} onClick={() => setPaginaAtual((p) => p - 1)}>
+              <ChevronLeft className="h-4 w-4" /> Anterior
+            </Button>
+            <span className="text-sm text-slate-700 dark:text-slate-300">Página {paginaAtual} de {Math.ceil(atletasFiltrados.length / ITENS_POR_PAGINA)}</span>
+            <Button variant="ghost" disabled={paginaAtual >= Math.ceil(atletasFiltrados.length / ITENS_POR_PAGINA)} onClick={() => setPaginaAtual((p) => p + 1)}>
+              Próximo <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </>
       )}
 
       <Modal

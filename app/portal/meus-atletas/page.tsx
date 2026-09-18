@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 type FormState = {
   nome: string;
@@ -172,7 +173,7 @@ export default function MeusAtletasPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-slate-900 dark:text-white">
-                      {atleta.nome}
+                      {normalizarNomePessoa(atleta.nome)}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {idade !== null ? `${idade} anos` : "Idade não informada"} ·{" "}

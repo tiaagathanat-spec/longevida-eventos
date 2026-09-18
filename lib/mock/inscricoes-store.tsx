@@ -11,6 +11,7 @@
 
 import { createContext, useContext, useMemo, useState, ReactNode } from "react";
 import { usePersistencia } from "@/lib/supabase/persistencia";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 export type InscricaoStatus = "pendente" | "confirmada" | "cancelada";
 
@@ -29,6 +30,7 @@ export type Inscricao = {
   atletaNome2?: string;
   atletaNome3?: string;
   atletaNome4?: string;
+  observacoes?: string; // observações internas da inscrição (texto livre)
 };
 
 export { nomeDaInscricao } from "./inscricoes-utils";
@@ -73,13 +75,22 @@ export function InscricoesProvider({ children }: { children: ReactNode }) {
           id: gerarId(),
           dataInscricao: new Date().toISOString().slice(0, 10),
           ...dados,
+          atletaNome: normalizarNomePessoa(dados.atletaNome),
+          atletaNome2: dados.atletaNome2 ? normalizarNomePessoa(dados.atletaNome2) : undefined,
+          atletaNome3: dados.atletaNome3 ? normalizarNomePessoa(dados.atletaNome3) : undefined,
+          atletaNome4: dados.atletaNome4 ? normalizarNomePessoa(dados.atletaNome4) : undefined,
         };
         setInscricoes((atual) => [nova, ...atual]);
         return nova;
       },
       atualizar: (id, dados) => {
+        const dadosNormalizados = { ...dados };
+        if (dadosNormalizados.atletaNome) dadosNormalizados.atletaNome = normalizarNomePessoa(dadosNormalizados.atletaNome);
+        if (dadosNormalizados.atletaNome2) dadosNormalizados.atletaNome2 = normalizarNomePessoa(dadosNormalizados.atletaNome2);
+        if (dadosNormalizados.atletaNome3) dadosNormalizados.atletaNome3 = normalizarNomePessoa(dadosNormalizados.atletaNome3);
+        if (dadosNormalizados.atletaNome4) dadosNormalizados.atletaNome4 = normalizarNomePessoa(dadosNormalizados.atletaNome4);
         setInscricoes((atual) =>
-          atual.map((i) => (i.id === id ? { ...i, ...dados } : i))
+          atual.map((i) => (i.id === id ? { ...i, ...dadosNormalizados } : i))
         );
       },
       alterarStatus: (id, status) => {

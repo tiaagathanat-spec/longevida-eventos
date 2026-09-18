@@ -13,6 +13,7 @@ import { useResultados } from "@/lib/mock/resultados-store";
 import { usePublicacoes } from "@/lib/mock/publicacoes-store";
 import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
 import { useSessao } from "@/lib/mock/sessao";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 // Medalha por colocação — mesma convenção usada em "Meus resultados".
 const MEDALHA: Record<number, string> = {
@@ -293,7 +294,7 @@ export default function MinhaJornadaPage() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-slate-900 dark:text-white">
-                          {nomeDaInscricao(etapa)}
+                          {normalizarNomePessoa(nomeDaInscricao(etapa))}
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           {etapa.eventoNome} · {etapa.modalidade} · {etapa.categoria}
@@ -343,7 +344,7 @@ export default function MinhaJornadaPage() {
               >
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-white">
-                    {nomeDaInscricao(desafio)}
+                    {normalizarNomePessoa(nomeDaInscricao(desafio))}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {desafio.eventoNome} · {desafio.modalidade} · {desafio.categoria}

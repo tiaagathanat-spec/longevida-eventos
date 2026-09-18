@@ -7,12 +7,17 @@ import Link from "next/link";
 import { ArrowLeft, Check, CreditCard, Printer } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
+import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useProvas, identificacaoDaProva } from "@/lib/mock/provas-store";
+import { useTiposProva } from "@/lib/mock/tipos-prova-store";
+import { useEtapasProva } from "@/lib/mock/etapas-prova-store";
 import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { usePerfis } from "@/lib/mock/perfis-store";
+import { useDorsais } from "@/lib/mock/dorsais-store";
 import { useQrDaInscricao } from "@/lib/mock/qrcodes-store";
 import { agruparEmFolhas } from "@/lib/impressao/agrupar-em-folhas";
+import { montarParticipacao, type DadosParticipacao } from "@/lib/dorsais/dados-participacao";
 import type { Inscricao } from "@/lib/mock/inscricoes-store";
 import type { Categoria } from "@/lib/mock/categorias-store";
 import type { Atleta } from "@/lib/mock/atletas-store";
@@ -24,6 +29,7 @@ type ItemCard = {
   categoria: Categoria;
   atleta: Atleta;
   foto?: string;
+  participacao: DadosParticipacao;
 };
 
 function formatarData(iso: string) {
@@ -56,9 +62,13 @@ export default function CardsDoEventoPage() {
 
   const { obterPorId: obterEvento } = useEventos();
   const { categorias } = useCategorias();
+  const { modalidades } = useModalidades();
   const { provas } = useProvas();
+  const { tiposProva } = useTiposProva();
+  const { listarPorProva: listarEtapasDaProva } = useEtapasProva();
   const { inscricoes } = useInscricoes();
   const { atletas } = useAtletas();
+  const { obterPorInscricao: obterDorsal } = useDorsais();
   const { obterPorEmail } = usePerfis();
 
   const evento = obterEvento(eventoId);
@@ -73,10 +83,27 @@ export default function CardsDoEventoPage() {
       const atleta = atletas.find((a) => a.nome === inscricao.atletaNome);
       if (!categoria || !atleta) continue;
       const foto = obterPorEmail(atleta.email)?.foto;
-      itens.push({ inscricao, categoria, atleta, foto });
+      const modalidade = modalidades.find((m) => m.id === prova.modalidadeId);
+      const tipoProva = tiposProva.find((t) => t.id === prova.tipoProvaId);
+      const dorsal = obterDorsal(inscricao.id);
+      itens.push({
+        inscricao,
+        categoria,
+        atleta,
+        foto,
+        participacao: montarParticipacao({
+          inscricao,
+          prova,
+          modalidade,
+          categoria,
+          tipoProva,
+          dorsal,
+          etapas: listarEtapasDaProva(inscricao.provaId),
+        }),
+      });
     }
     return itens.sort((a, b) => a.inscricao.atletaNome.localeCompare(b.inscricao.atletaNome));
-  }, [inscricoes, provas, categorias, atletas, eventoId, obterPorEmail]);
+  }, [inscricoes, provas, categorias, modalidades, tiposProva, atletas, eventoId, obterPorEmail, obterDorsal, listarEtapasDaProva]);
 
   // Seleção dos cards que serão impressos (padrão: todos, assim que os
   // dados carregam; o usuário pode desmarcar quais não quer imprimir).
@@ -194,7 +221,7 @@ export default function CardsDoEventoPage() {
             </div>
 
             <div className="flex flex-wrap justify-center gap-4">
-              {cards.map(({ inscricao, categoria, foto }) => {
+              {cards.map(({ inscricao, categoria, foto, participacao }) => {
                 const marcado = selecionadas.has(inscricao.id);
                 return (
                   <div
@@ -230,6 +257,7 @@ export default function CardsDoEventoPage() {
                       dataEvento={formatarData(evento.data)}
                       localEvento={evento.local}
                       fotoUrl={foto}
+                      participacao={participacao}
                     />
                   </div>
                 );
@@ -245,7 +273,7 @@ export default function CardsDoEventoPage() {
         <div className="hidden print:block">
           {paginas.map((pagina, pageIdx) => (
             <div key={pageIdx} className="folha-cards-oficiais">
-              {pagina.map(({ inscricao, categoria, foto }) => (
+              {pagina.map(({ inscricao, categoria, foto, participacao }) => (
                 <CrachaComQr
                   key={inscricao.id}
                   inscricaoId={inscricao.id}
@@ -255,6 +283,7 @@ export default function CardsDoEventoPage() {
                   dataEvento={formatarData(evento.data)}
                   localEvento={evento.local}
                   fotoUrl={foto}
+                  participacao={participacao}
                 />
               ))}
             </div>

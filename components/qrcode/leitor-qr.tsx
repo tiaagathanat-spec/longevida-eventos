@@ -14,7 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type LeitorQrProps = {
-  onLeitura: (identificador: string) => void;
+  // Retorna true quando a leitura é aceita (câmera para) ou false/undefined
+  // quando deve ser ignorada (câmera permanece lendo o próximo QR).
+  onLeitura: (identificador: string) => boolean | void | Promise<boolean | void>;
   pararAoLer?: boolean;
 };
 
@@ -23,6 +25,9 @@ export function LeitorQr({ onLeitura, pararAoLer = true }: LeitorQrProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const frameRef = useRef<number | null>(null);
   const lidoRef = useRef(false);
+  // Cooldown para leituras rejeitadas: mantém a câmera ativa, mas evita
+  // disparar onLeitura repetidamente enquanto o mesmo QR ainda está na tela.
+  const rejeitadoAteRef = useRef(0);
 
   const [erroCamera, setErroCamera] = useState(false);
   const [cameraAtiva, setCameraAtiva] = useState(false);
@@ -64,10 +69,25 @@ export function LeitorQr({ onLeitura, pararAoLer = true }: LeitorQrProps) {
     });
 
     if (codigo?.data) {
+      // Ignora re-leituras do mesmo QR recém-rejeitado (cooldown curto),
+      // evitando repetir avisos enquanto o operador reposiciona o papel.
+      if (typeof performance === "undefined" || performance.now() < rejeitadoAteRef.current) {
+        frameRef.current = requestAnimationFrame(lerFrame);
+        return;
+      }
+
       const identificador = codigo.data.trim();
-      lidoRef.current = true;
-      onLeitura(identificador);
-      if (pararAoLer) pararCamera();
+      Promise.resolve(onLeitura(identificador)).then((aceito) => {
+        if (aceito || !pararAoLer) {
+          lidoRef.current = true;
+          pararCamera();
+          return;
+        }
+        // Não aceito: mantém a câmera lendo, com um intervalo antes de
+        // permitir avaliar novamente o mesmo conteúdo.
+        rejeitadoAteRef.current = performance.now() + 1200;
+        frameRef.current = requestAnimationFrame(lerFrame);
+      });
       return;
     }
 

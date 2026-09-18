@@ -24,11 +24,13 @@ import { AtletasProvider } from "@/lib/mock/atletas-store";
 import { ResultadosProvider } from "@/lib/mock/resultados-store";
 import { PublicacoesProvider } from "@/lib/mock/publicacoes-store";
 import { PagamentosProvider } from "@/lib/mock/pagamentos-store";
+import { CreditosProvider } from "@/lib/mock/creditos-store";
 import { GaleriaProvider } from "@/lib/mock/galeria-store";
 import { RegulamentosProvider } from "@/lib/mock/regulamentos-store";
 import { FaixasNumeracaoProvider } from "@/lib/mock/faixas-numeracao-store";
 import { DorsaisProvider } from "@/lib/mock/dorsais-store";
 import { DorsaisAutoAssign } from "@/lib/mock/dorsais-auto-assign";
+import { EtapasProvaProvider } from "@/lib/mock/etapas-prova-store";
 import { PatrocinadoresProvider } from "@/lib/mock/patrocinadores-store";
 import { QrCodesProvider } from "@/lib/mock/qrcodes-store";
 
@@ -44,11 +46,13 @@ export function AppProviders({ children }: { children: ReactNode }) {
                 <ModalidadesProvider>
                   <TiposProvaProvider>
                     <ProvasProvider>
-                      <InscricoesProvider>
+                      <EtapasProvaProvider>
+                        <InscricoesProvider>
                         <AtletasProvider>
                           <ResultadosProvider>
                             <PublicacoesProvider>
                               <PagamentosProvider>
+                                <CreditosProvider>
                                 <GaleriaProvider>
                                   <RegulamentosProvider>
                                     <FaixasNumeracaoProvider>
@@ -59,11 +63,13 @@ export function AppProviders({ children }: { children: ReactNode }) {
                                     </FaixasNumeracaoProvider>
                                   </RegulamentosProvider>
                                 </GaleriaProvider>
-                              </PagamentosProvider>
+                              </CreditosProvider>
+                            </PagamentosProvider>
                             </PublicacoesProvider>
                           </ResultadosProvider>
                         </AtletasProvider>
                       </InscricoesProvider>
+                      </EtapasProvaProvider>
                     </ProvasProvider>
                   </TiposProvaProvider>
                 </ModalidadesProvider>

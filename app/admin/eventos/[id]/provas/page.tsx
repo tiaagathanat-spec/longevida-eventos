@@ -3,11 +3,12 @@
 import { useState, FormEvent } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Pencil, Trash2, Copy, Clock } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Copy, Clock, Route } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
-import { useTiposProva } from "@/lib/mock/tipos-prova-store";
+import { useTiposProva, integrantesDaProva } from "@/lib/mock/tipos-prova-store";
+import { useEtapasProva } from "@/lib/mock/etapas-prova-store";
 import { useProvas, Prova, TipoIdentificacaoProva, identificacaoDaProva } from "@/lib/mock/provas-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,16 @@ type FormState = {
   tipoIdentificacao: TipoIdentificacaoProva;
 };
 
+// Etapa/percuso de um participante da prova, no editor do modal de etapas.
+type EtapaFormulario = {
+  posicao: number;
+  funcao: string;
+  nome: string;
+  distanciaMetros: string;
+  unidade: "m" | "km";
+  descricao: string;
+};
+
 export default function ProvasDoEventoPage() {
   const params = useParams<{ id: string }>();
   const eventoId = params.id;
@@ -35,6 +46,7 @@ export default function ProvasDoEventoPage() {
   const { categorias } = useCategorias();
   const { tiposProva } = useTiposProva();
   const { listarPorEvento, criar, atualizar, excluir, duplicar } = useProvas();
+  const { listarPorProva, salvarEtapas } = useEtapasProva();
 
   const evento = obterEvento(eventoId);
   const provas = listarPorEvento(eventoId);
@@ -54,6 +66,8 @@ export default function ProvasDoEventoPage() {
   const [form, setForm] = useState<FormState>(formVazio);
   const [erros, setErros] = useState<Record<string, string>>({});
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
+  const [etapasProvaId, setEtapasProvaId] = useState<string | null>(null);
+  const [etapasForm, setEtapasForm] = useState<EtapaFormulario[]>([]);
 
   const provaParaExcluir = provas.find((p) => p.id === excluindoId);
 
@@ -127,6 +141,49 @@ export default function ProvasDoEventoPage() {
       criar(dados);
     }
     setModalAberto(false);
+  }
+
+  function abrirEtapas(prova: Prova) {
+    const tipo = tiposProva.find((t) => t.id === prova.tipoProvaId);
+    const n = integrantesDaProva(tipo);
+    const existentes = listarPorProva(prova.id);
+    const formulario: EtapaFormulario[] = [];
+    for (let posicao = 1; posicao <= n; posicao++) {
+      const etapa = existentes.find((e) => e.posicao === posicao);
+      formulario.push({
+        posicao,
+        funcao: etapa?.funcao ?? `Participante ${posicao}`,
+        nome: etapa?.nome ?? `Etapa do participante ${posicao}`,
+        distanciaMetros: etapa?.distanciaMetros ? String(etapa.distanciaMetros) : "",
+        unidade: etapa?.unidade === "km" ? "km" : "m",
+        descricao: etapa?.descricao ?? "",
+      });
+    }
+    setEtapasForm(formulario);
+    setEtapasProvaId(prova.id);
+  }
+
+  function atualizarEtapaForm(indice: number, patch: Partial<EtapaFormulario>) {
+    setEtapasForm((atual) =>
+      atual.map((f, i) => (i === indice ? { ...f, ...patch } : f))
+    );
+  }
+
+  function salvarEtapasProva() {
+    if (!etapasProvaId) return;
+    const etapas = etapasForm.map((f, indice) => ({
+      posicao: f.posicao,
+      funcao: f.funcao.trim() || `Participante ${f.posicao}`,
+      nome: f.nome.trim() || `Etapa ${indice + 1}`,
+      ordem: indice,
+      distanciaMetros: f.distanciaMetros
+        ? Number(f.distanciaMetros.replace(",", "."))
+        : null,
+      unidade: f.unidade,
+      descricao: f.descricao.trim(),
+    }));
+    salvarEtapas(etapasProvaId, etapas);
+    setEtapasProvaId(null);
   }
 
   if (!evento) {
@@ -207,12 +264,31 @@ export default function ProvasDoEventoPage() {
                   </span>
                   {prova.observacoes && <span>{prova.observacoes}</span>}
                 </div>
+                {listarPorProva(prova.id).length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {listarPorProva(prova.id).map((etapa) => (
+                      <span
+                        key={etapa.id}
+                        className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                      >
+                        {etapa.funcao} · {etapa.nome}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <p className="mt-1.5 text-sm font-semibold text-brand-green">
                   {formatarMoeda(prova.valor)}
                 </p>
               </div>
 
               <div className="flex items-center gap-1.5">
+                <Button
+                  variant="ghost"
+                  aria-label="Etapas e percursos"
+                  onClick={() => abrirEtapas(prova)}
+                >
+                  <Route className="h-4 w-4" />
+                </Button>
                 <Button
                   variant="ghost"
                   aria-label="Duplicar prova"
@@ -338,6 +414,86 @@ export default function ProvasDoEventoPage() {
             <Button type="submit">{editandoId ? "Salvar alterações" : "Criar prova"}</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!etapasProvaId}
+        title="Etapas e percursos da prova"
+        onClose={() => setEtapasProvaId(null)}
+        tamanho="lg"
+      >
+        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+          Configure o que cada participante executa nesta prova (função, nome do
+          percurso e distância). São essas informações que o relatório operacional
+          exibe. Provas individuais sem etapas configuradas usam a Modalidade.
+        </p>
+        <div className="flex flex-col gap-4">
+          {etapasForm.map((etapa, indice) => (
+            <div
+              key={etapa.posicao}
+              className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"
+            >
+              <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">
+                Participante {etapa.posicao}
+              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input
+                  id={`funcao-${etapa.posicao}`}
+                  label="Função"
+                  placeholder="Ex.: Nadador"
+                  value={etapa.funcao}
+                  onChange={(e) => atualizarEtapaForm(indice, { funcao: e.target.value })}
+                />
+                <Input
+                  id={`nome-${etapa.posicao}`}
+                  label="Nome do percurso/etapa"
+                  placeholder="Ex.: Natação"
+                  value={etapa.nome}
+                  onChange={(e) => atualizarEtapaForm(indice, { nome: e.target.value })}
+                />
+                <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                  <Input
+                    id={`distancia-${etapa.posicao}`}
+                    label="Distância (metros)"
+                    placeholder="Ex.: 3000 (vazio = a definir)"
+                    value={etapa.distanciaMetros}
+                    onChange={(e) =>
+                      atualizarEtapaForm(indice, { distanciaMetros: e.target.value })
+                    }
+                  />
+                  <Select
+                    id={`unidade-${etapa.posicao}`}
+                    label="Unidade"
+                    value={etapa.unidade}
+                    onChange={(e) =>
+                      atualizarEtapaForm(indice, { unidade: e.target.value as "m" | "km" })
+                    }
+                  >
+                    <option value="m">m</option>
+                    <option value="km">km</option>
+                  </Select>
+                </div>
+                <Input
+                  id={`descricao-${etapa.posicao}`}
+                  label="Descrição (opcional)"
+                  placeholder="Ex.: Piscina olímpica"
+                  value={etapa.descricao}
+                  onChange={(e) =>
+                    atualizarEtapaForm(indice, { descricao: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={() => setEtapasProvaId(null)}>
+            Cancelar
+          </Button>
+          <Button type="button" onClick={salvarEtapasProva} disabled={etapasForm.length === 0}>
+            Salvar etapas
+          </Button>
+        </div>
       </Modal>
 
       <ConfirmDialog

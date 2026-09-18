@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   reconciliarNumerosDoGrupo,
+  reconciliarNumerosDaProva,
+  type DorsalDaProva,
   type DorsalParaReconciliar,
+  type FaixaParaReconciliar,
 } from "@/lib/mock/dorsais-reconciliar";
 
 function dorsal(id: string, numero: number): DorsalParaReconciliar {
@@ -75,5 +78,97 @@ describe("reconciliarNumerosDoGrupo", () => {
     );
     expect(mudancas.has("a")).toBe(false); // o 1 já está ocupado por "a"
     expect(mudancas.has("b")).toBe(false); // sem espaço — mantém o atual
+  });
+});
+
+describe("reconciliarNumerosDaProva", () => {
+  function dorsalDaProva(
+    id: string,
+    numero: number,
+    atribuidoEm: string
+  ): DorsalDaProva {
+    return { id, inscricaoId: `insc-${id}`, numero, atribuidoEm };
+  }
+
+  const faixa = (id: string): FaixaParaReconciliar => ({ numeroInicial: 1, numeroFinal: 20 });
+
+  it("mantém números válidos, únicos e dentro da própria faixa", () => {
+    const lista = [
+      dorsalDaProva("a", 3, "2026-09-01T00:00:00.000Z"),
+      dorsalDaProva("b", 7, "2026-09-02T00:00:00.000Z"),
+    ];
+    const faixas = new Map<string, FaixaParaReconciliar>([
+      ["a", faixa("a")],
+      ["b", faixa("b")],
+    ]);
+    expect(reconciliarNumerosDaProva(lista, faixas).size).toBe(0);
+  });
+
+  it("renumera duplicata entre grupos sobrepostos, mantendo o mais antigo", () => {
+    // Mesmo número (5) na MESMA prova, mas em grupos/faixas diferentes —
+    // exatamente o conflito que o banco rejeita (UNIQUE prova_id, numero).
+    const lista = [
+      dorsalDaProva("antiguo", 5, "2026-09-01T00:00:00.000Z"),
+      dorsalDaProva("recente", 5, "2026-09-03T00:00:00.000Z"),
+    ];
+    const faixas = new Map<string, FaixaParaReconciliar>([
+      ["antiguo", faixa("antiguo")],
+      ["recente", faixa("recente")],
+    ]);
+    const mudancas = reconciliarNumerosDaProva(lista, faixas);
+    expect(mudancas.size).toBe(1);
+    expect(mudancas.has("antiguo")).toBe(false); // o mais antigo mantém o 5
+    expect(mudancas.get("recente")).toBe(1); // primeiro livre na prova
+  });
+
+  it("renumera número fora da faixa própria dentro da prova", () => {
+    const lista = [dorsalDaProva("a", 41, "2026-09-01T00:00:00.000Z")];
+    const faixas = new Map<string, FaixaParaReconciliar>([
+      ["a", { numeroInicial: 61, numeroFinal: 80 }],
+    ]);
+    expect(reconciliarNumerosDaProva(lista, faixas).get("a")).toBe(61);
+  });
+
+  it("reaproveita números livres após a duplicata", () => {
+    const lista = [
+      dorsalDaProva("a", 2, "2026-09-01T00:00:00.000Z"),
+      dorsalDaProva("b", 2, "2026-09-02T00:00:00.000Z"),
+      dorsalDaProva("c", 3, "2026-09-03T00:00:00.000Z"),
+    ];
+    const faixaMap = new Map<string, FaixaParaReconciliar>([
+      ["a", faixa("a")],
+      ["b", faixa("b")],
+      ["c", faixa("c")],
+    ]);
+    const mudancas = reconciliarNumerosDaProva(lista, faixaMap);
+    expect(mudancas.get("b")).toBe(1); // 1 é o primeiro livre (2 e 3 ocupados)
+  });
+
+  it("não reutiliza números atribuídos nesta execução", () => {
+    const lista = [dorsalDaProva("a", 5, "2026-09-01T00:00:00.000Z")];
+    const faixas = new Map<string, FaixaParaReconciliar>([
+      ["a", faixa("a")],
+    ]);
+    const mudancas = reconciliarNumerosDaProva(lista, faixas, [5]);
+    expect(mudancas.has("a")).toBe(true);
+    expect(mudancas.get("a")).toBe(1);
+  });
+
+  it("não mexe em dorsal sem faixa", () => {
+    const lista = [dorsalDaProva("a", 5, "2026-09-01T00:00:00.000Z")];
+    expect(reconciliarNumerosDaProva(lista, new Map()).size).toBe(0);
+  });
+
+  it("não reatribui quando a faixa está esgotada", () => {
+    const lista = [
+      dorsalDaProva("a", 1, "2026-09-01T00:00:00.000Z"),
+      dorsalDaProva("b", 1, "2026-09-02T00:00:00.000Z"),
+    ];
+    const faixas = new Map<string, FaixaParaReconciliar>([
+      ["a", { numeroInicial: 1, numeroFinal: 1 }],
+      ["b", { numeroInicial: 1, numeroFinal: 1 }],
+    ]);
+    const mudancas = reconciliarNumerosDaProva(lista, faixas);
+    expect(mudancas.size).toBe(0); // sem espaço para "b" — mantém como está
   });
 });

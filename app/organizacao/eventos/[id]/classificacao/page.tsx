@@ -22,6 +22,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 import { TabelaClassificacaoGrupos } from "@/components/classificacao/tabela-classificacao-grupos";
 
 function formatarDataHora(iso: string) {
@@ -218,7 +219,7 @@ export default function ClassificacaoPage() {
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
                 {aguardando.map((i) => (
-                  <span key={i.id}>{nomeDaInscricao(i)}</span>
+                  <span key={i.id}>{normalizarNomePessoa(nomeDaInscricao(i))}</span>
                 ))}
               </div>
             </div>

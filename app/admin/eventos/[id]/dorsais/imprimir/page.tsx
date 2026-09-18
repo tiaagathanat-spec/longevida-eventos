@@ -7,8 +7,11 @@ import Link from "next/link";
 import { ArrowLeft, Check, Printer } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
+import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useProvas, identificacaoDaProva } from "@/lib/mock/provas-store";
-import { useInscricoes } from "@/lib/mock/inscricoes-store";
+import { useTiposProva } from "@/lib/mock/tipos-prova-store";
+import { useEtapasProva } from "@/lib/mock/etapas-prova-store";
+import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
 import {
@@ -19,8 +22,10 @@ import {
 import { useGaleria } from "@/lib/mock/galeria-store";
 import { useQrDaInscricao } from "@/lib/mock/qrcodes-store";
 import { agruparEmFolhas } from "@/lib/impressao/agrupar-em-folhas";
+import { montarParticipacao, type DadosParticipacao } from "@/lib/dorsais/dados-participacao";
 import { Button } from "@/components/ui/button";
 import { CartaoDorsal } from "@/components/dorsais/cartao-dorsal";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 type ItemDorsal = {
   inscricaoId: string;
@@ -31,6 +36,7 @@ type ItemDorsal = {
   medalhaEntregue: boolean;
   alimentacaoEntregue: boolean;
   kitEntregue: boolean;
+  participacao: DadosParticipacao;
 };
 
 function formatarData(iso: string) {
@@ -57,7 +63,10 @@ export default function ImprimirDorsaisPage() {
 
   const { obterPorId: obterEvento } = useEventos();
   const { categorias } = useCategorias();
+  const { modalidades } = useModalidades();
   const { provas } = useProvas();
+  const { tiposProva } = useTiposProva();
+  const { listarPorProva: listarEtapasDaProva } = useEtapasProva();
   const { inscricoes } = useInscricoes();
   const { atletas } = useAtletas();
   const { obterPorInscricao } = useDorsais();
@@ -83,6 +92,8 @@ export default function ImprimirDorsaisPage() {
       .map((inscricao) => {
         const prova = provas.find((p) => p.id === inscricao.provaId);
         const categoria = categorias.find((c) => c.id === prova?.categoriaId);
+        const modalidade = modalidades.find((m) => m.id === prova?.modalidadeId);
+        const tipoProva = tiposProva.find((t) => t.id === prova?.tipoProvaId);
         const atleta = atletas.find((a) => a.nome === inscricao.atletaNome);
         const grupo = resolverGrupoNumeracao(
           obterCriterio(eventoId),
@@ -97,18 +108,27 @@ export default function ImprimirDorsaisPage() {
           item: {
             inscricaoId: inscricao.id,
             numero: dorsal.numero ?? 0,
-            atletaNome: inscricao.atletaNome,
+            atletaNome: normalizarNomePessoa(nomeDaInscricao(inscricao)),
             categoriaNome: grupo.grupoNome,
             cor: obterFaixa(eventoId, grupo.grupoId)?.cor ?? "azul",
             medalhaEntregue: Boolean(dorsal.medalhaEntregue),
             alimentacaoEntregue: Boolean(dorsal.alimentacaoEntregue),
             kitEntregue: Boolean(dorsal.kitEntregue),
+            participacao: montarParticipacao({
+              inscricao,
+              prova,
+              modalidade,
+              categoria,
+              tipoProva,
+              dorsal,
+              etapas: listarEtapasDaProva(inscricao.provaId),
+            }),
           } satisfies ItemDorsal,
         };
       })
       .filter((v): v is NonNullable<typeof v> => v !== null)
       .sort((a, b) => a.item.numero - b.item.numero);
-  }, [inscricoes, provas, categorias, atletas, eventoId, obterCriterio, obterFaixa, obterPorInscricao]);
+  }, [inscricoes, provas, categorias, modalidades, tiposProva, atletas, eventoId, obterCriterio, obterFaixa, obterPorInscricao, listarEtapasDaProva]);
 
   // Seleção dos dorsais a imprimir (padrão: todos, quando os dados carregam).
   const todasIds = useMemo(() => dorsais.map((d) => d.inscricao.id), [dorsais]);
@@ -250,6 +270,7 @@ export default function ImprimirDorsaisPage() {
                         medalhaEntregue={item.medalhaEntregue}
                         alimentacaoEntregue={item.alimentacaoEntregue}
                         kitEntregue={item.kitEntregue}
+                        participacao={item.participacao}
                       />
                     </div>
                   </div>
@@ -282,6 +303,7 @@ export default function ImprimirDorsaisPage() {
                     medalhaEntregue={item.medalhaEntregue}
                     alimentacaoEntregue={item.alimentacaoEntregue}
                     kitEntregue={item.kitEntregue}
+                    participacao={item.participacao}
                   />
                 </div>
               ))}

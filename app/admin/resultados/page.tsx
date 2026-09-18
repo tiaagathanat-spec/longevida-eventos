@@ -22,6 +22,7 @@ import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 import { useResultados } from "@/lib/mock/resultados-store";
 import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 import { Select } from "@/components/ui/select";
@@ -250,7 +251,7 @@ export default function ResultadosPage() {
                   {comTempo.map(({ inscricao, resultado }) => (
                     <tr key={inscricao.id}>
                       <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
-                        {nomeDaInscricao(inscricao)}
+                        {normalizarNomePessoa(nomeDaInscricao(inscricao))}
                         {inscricao.numeroPeito ? (
                           <span className="ml-2 text-xs text-slate-400">
                             peito {inscricao.numeroPeito}
@@ -343,7 +344,7 @@ export default function ResultadosPage() {
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
                 {semTempo.map(({ inscricao }) => (
-                  <span key={inscricao.id}>{nomeDaInscricao(inscricao)}</span>
+                  <span key={inscricao.id}>{normalizarNomePessoa(nomeDaInscricao(inscricao))}</span>
                 ))}
               </div>
             </div>

@@ -25,6 +25,7 @@ import { useQrCodes } from "@/lib/mock/qrcodes-store";
 import { useSessao } from "@/lib/mock/sessao";
 import { usePendentesOffline } from "@/lib/supabase/fila-offline";
 import { processarFilaOffline } from "@/lib/supabase/persistencia";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 // Módulo Cronometragem — pensado para uso rápido em tablet durante a
 // competição: campos grandes, poucos toques, salvar imediato por atleta.
@@ -515,7 +516,7 @@ export function CronometragemClient() {
                     {inscricao.numeroPeito || "—"}
                   </span>
                   <p className="min-w-0 flex-1 truncate text-base font-semibold text-slate-900 dark:text-white">
-                    {nomeDaInscricao(inscricao)}
+                    {normalizarNomePessoa(nomeDaInscricao(inscricao))}
                   </p>
                   <span
                     className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
@@ -848,7 +849,7 @@ function CronometroSection(props: CronometroSectionProps) {
                       {inscricao.numeroPeito || "—"}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-base font-semibold text-slate-900 dark:text-white">
-                      {nomeDaInscricao(inscricao)}
+                      {normalizarNomePessoa(nomeDaInscricao(inscricao))}
                     </span>
                     {liberado ? (
                       <span className="shrink-0 rounded-full bg-brand-green/10 px-2.5 py-1 text-[11px] font-bold text-brand-green">
@@ -891,7 +892,7 @@ function CronometroSection(props: CronometroSectionProps) {
                   {ins.numeroPeito || "—"}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
-                  {nomeDaInscricao(ins)}
+                  {normalizarNomePessoa(nomeDaInscricao(ins))}
                 </span>
                 <span className="shrink-0 text-sm font-bold tabular-nums text-brand-green">
                   {r.tempo}

@@ -6,12 +6,17 @@ import Link from "next/link";
 import { ArrowLeft, Printer } from "lucide-react";
 import { useEventos } from "@/lib/mock/eventos-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
+import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useProvas } from "@/lib/mock/provas-store";
+import { useTiposProva } from "@/lib/mock/tipos-prova-store";
+import { useEtapasProva } from "@/lib/mock/etapas-prova-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
+import { useDorsais } from "@/lib/mock/dorsais-store";
 import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { usePerfis } from "@/lib/mock/perfis-store";
 import { useSessao } from "@/lib/mock/sessao";
 import { useQrDaInscricao } from "@/lib/mock/qrcodes-store";
+import { montarParticipacao } from "@/lib/dorsais/dados-participacao";
 import { Button } from "@/components/ui/button";
 import { CrachaAtleta } from "@/components/cracha/cracha-atleta";
 
@@ -43,9 +48,13 @@ export default function CredenciaisPage() {
   const { sessao } = useSessao();
   const { eventos } = useEventos();
   const { categorias } = useCategorias();
+  const { modalidades } = useModalidades();
   const { provas } = useProvas();
+  const { tiposProva } = useTiposProva();
+  const { listarPorProva: listarEtapasDaProva } = useEtapasProva();
   const { atletas } = useAtletas();
   const { inscricoes } = useInscricoes();
+  const { obterPorInscricao: obterDorsal } = useDorsais();
   const { obterPorEmail } = usePerfis();
 
   const meusNomesDeAtletas = useMemo(
@@ -68,15 +77,33 @@ export default function CredenciaisPage() {
           const evento = eventos.find((e) => e.id === inscricao.eventoId);
           const prova = provas.find((p) => p.id === inscricao.provaId);
           const categoria = categorias.find((c) => c.id === prova?.categoriaId);
+          const modalidade = modalidades.find((m) => m.id === prova?.modalidadeId);
+          const tipoProva = tiposProva.find((t) => t.id === prova?.tipoProvaId);
+          const dorsal = obterDorsal(inscricao.id);
           const atleta = atletas.find((a) => a.nome === inscricao.atletaNome);
           const foto = atleta ? obterPorEmail(atleta.email)?.foto : undefined;
-          return { inscricao, evento, categoria, atleta, foto };
+          return {
+            inscricao,
+            evento,
+            categoria,
+            atleta,
+            foto,
+            participacao: montarParticipacao({
+              inscricao,
+              prova,
+              modalidade,
+              categoria,
+              tipoProva,
+              dorsal,
+              etapas: listarEtapasDaProva(inscricao.provaId),
+            }),
+          };
         })
         .filter((c) => c.evento && c.atleta && c.categoria)
         .sort((a, b) =>
           a.inscricao.atletaNome.localeCompare(b.inscricao.atletaNome)
         ),
-    [inscricoes, eventos, provas, categorias, atletas, meusNomesDeAtletas, obterPorEmail]
+    [inscricoes, eventos, provas, categorias, modalidades, tiposProva, atletas, obterPorEmail, obterDorsal, listarEtapasDaProva, meusNomesDeAtletas]
   );
 
   return (
@@ -122,7 +149,7 @@ export default function CredenciaisPage() {
         </div>
       ) : (
         <div className="credenciais-grelha flex flex-wrap justify-center gap-4">
-          {credenciais.map(({ inscricao, evento, categoria, foto }) => (
+          {credenciais.map(({ inscricao, evento, categoria, foto, participacao }) => (
             <CrachaComQr
               key={inscricao.id}
               inscricaoId={inscricao.id}
@@ -132,6 +159,7 @@ export default function CredenciaisPage() {
               dataEvento={formatarData(evento!.data)}
               localEvento={evento!.local}
               fotoUrl={foto}
+              participacao={participacao}
             />
           ))}
         </div>

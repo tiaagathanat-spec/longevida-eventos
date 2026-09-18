@@ -32,7 +32,12 @@ import {
   resolverGrupoNumeracao,
 } from "@/lib/mock/faixas-numeracao-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
-import { reconciliarNumerosDoGrupo } from "@/lib/mock/dorsais-reconciliar";
+import {
+  reconciliarNumerosDoGrupo,
+  reconciliarNumerosDaProva,
+  type DorsalDaProva,
+  type FaixaParaReconciliar,
+} from "@/lib/mock/dorsais-reconciliar";
 
 export function DorsaisAutoAssign() {
   const { inscricoes, atualizar: atualizarInscricao } = useInscricoes();
@@ -40,13 +45,19 @@ export function DorsaisAutoAssign() {
   const { atletas } = useAtletas();
   const { categorias } = useCategorias();
   const { obterCriterio, obter: obterFaixa } = useFaixasNumeracao();
-  const { dorsais, obterPorInscricao, registrar, atualizarNumero } = useDorsais();
+  const { dorsais, registrar, atualizarNumero, atualizarNumeroDoDorsal } =
+    useDorsais();
 
   useEffect(() => {
     // Números já atribuídos em execuções anteriores, agrupados por faixa
     // (evento + grupo) — evita confundir faixas de eventos/grupos
     // diferentes que por acaso usem números parecidos.
     const numerosPorFaixa = new Map<string, Set<number>>();
+    // Números em uso na PROVA INTEIRA. O banco exige UNIQUE(prova_id,
+    // numero); como a numeração é por faixa/grupo, grupos sobrepostos na
+    // mesma prova poderiam alocar o mesmo número. Este mapa global por
+    // prova impede essa colisão (causa do erro "chave duplicada").
+    const numerosDaProva = new Map<string, Set<number>>();
     // Grupo/faixa de cada dorsal existente (chave `eventoId::grupoId`).
     const chaveDoDorsal = new Map<string, string>();
     for (const dorsal of dorsais) {
@@ -67,12 +78,23 @@ export function DorsaisAutoAssign() {
       const set = numerosPorFaixa.get(chave) ?? new Set<number>();
       set.add(dorsal.numero);
       numerosPorFaixa.set(chave, set);
+      const setProva = numerosDaProva.get(inscricao.provaId) ?? new Set<number>();
+      setProva.add(dorsal.numero);
+      numerosDaProva.set(inscricao.provaId, setProva);
     }
 
-    // 1. Atribui números às inscrições confirmadas que ainda não têm dorsal.
+    // 1. Atribui números às inscrições confirmadas que ainda não têm dorsal
+    //    na PRÓPRIA PROVA (uma inscrição tem, no máximo, um dorsal por prova).
     inscricoes
       .filter((inscricao) => inscricao.status === "confirmada")
-      .filter((inscricao) => !obterPorInscricao(inscricao.id))
+      .filter(
+        (inscricao) =>
+          !dorsais.some(
+            (d) =>
+              d.inscricaoId === inscricao.id &&
+              d.provaId === inscricao.provaId
+          )
+      )
       .forEach((inscricao) => {
         const prova = provas.find((p) => p.id === inscricao.provaId);
         if (!prova) return;
@@ -90,17 +112,24 @@ export function DorsaisAutoAssign() {
         if (!faixa) return; // grupo sem faixa configurada — aguarda o admin configurar
 
         // Próximo número livre dentro da faixa: o menor número do
-        // intervalo que ainda não foi usado. O controle é feito dentro da
-        // própria execução, para que duas inscrições do mesmo grupo
-        // processadas juntas nunca recebam o mesmo número.
+        // intervalo que ainda não foi usado — nem na própria faixa nem na
+        // prova inteira (o banco bloqueia números duplicados por prova).
         const chave = `${inscricao.eventoId}::${grupo.grupoId}`;
         const usados = numerosPorFaixa.get(chave) ?? new Set<number>();
+        const usadosNaProva =
+          numerosDaProva.get(inscricao.provaId) ?? new Set<number>();
 
         let proximoNumero = faixa.numeroInicial;
-        while (usados.has(proximoNumero)) proximoNumero += 1;
+        while (
+          usados.has(proximoNumero) ||
+          usadosNaProva.has(proximoNumero)
+        ) {
+          proximoNumero += 1;
+        }
         if (proximoNumero > faixa.numeroFinal) return; // faixa esgotada
 
         usados.add(proximoNumero);
+        usadosNaProva.add(proximoNumero);
         registrar(inscricao.id, proximoNumero, inscricao.provaId);
         // Mantém `numeroPeito` da inscrição em sincronia com o dorsal
         // atribuído, para que todas as telas que exibem o número
@@ -109,9 +138,27 @@ export function DorsaisAutoAssign() {
         atualizarInscricao(inscricao.id, { numeroPeito: String(proximoNumero) });
       });
 
-    // 2. Reconciliação: renumera dorsais existentes fora da faixa do
-    //    grupo ou duplicados dentro dela. Processa cada faixa de forma
-    //    determinística (módulo puro lib/mock/dorsais-reconciliar).
+    // Assistente de faixa por dorsal (id -> faixa), para a renumeração por
+    // prova abaixo não depender do grupo/fluxo interno.
+    const faixaDoDorsal = new Map<string, FaixaParaReconciliar>();
+    for (const [dorsalId, chave] of chaveDoDorsal) {
+      const [eventoId, grupoId] = chave.split("::") as [string, string];
+      const faixa = obterFaixa(eventoId, grupoId);
+      if (faixa) faixaDoDorsal.set(dorsalId, faixa);
+    }
+    // Números atribuídos nesta execução, por prova — reservados em ambas
+    // as reconciliações para não serem reutilizados.
+    const numerosNovosDaProva = new Map<string, number[]>();
+    for (const [provaId, usadosNaProva] of numerosDaProva) {
+      const novos = [...usadosNaProva].filter((n) =>
+        [...dorsais].every((d) => d.numero !== n)
+      );
+      if (novos.length > 0) numerosNovosDaProva.set(provaId, novos);
+    }
+
+    // 2. Reconciliação por faixa: renumera dorsais existentes fora da
+    //    faixa do grupo ou duplicados dentro dela. Processa cada faixa de
+    //    forma determinística (módulo puro lib/mock/dorsais-reconciliar).
     for (const [chave, todosUsados] of numerosPorFaixa) {
       const [eventoId, grupoId] = chave.split("::") as [string, string];
       const faixa = obterFaixa(eventoId, grupoId);
@@ -145,6 +192,39 @@ export function DorsaisAutoAssign() {
       }
     }
 
+    // 2.5 Reconciliação POR PROVA: garante unicidade dentro da prova como
+    //     um todo (o banco exige UNIQUE(prova_id, numero)). Grupos com
+    //     faixas sobrepostas na MESMA prova poderiam ter duplicado um
+    //     número; mantém o dorsal mais antigo e renumera os demais.
+    const dorsaisPorProva = new Map<string, DorsalDaProva[]>();
+    for (const dorsal of dorsais) {
+      const inscricao = inscricoes.find((i) => i.id === dorsal.inscricaoId);
+      if (!inscricao || inscricao.status !== "confirmada") continue;
+      const lista = dorsaisPorProva.get(inscricao.provaId) ?? [];
+      lista.push({
+        id: dorsal.id,
+        inscricaoId: dorsal.inscricaoId,
+        numero: dorsal.numero,
+        atribuidoEm: dorsal.atribuidoEm,
+      });
+      dorsaisPorProva.set(inscricao.provaId, lista);
+    }
+    for (const [provaId, lista] of dorsaisPorProva) {
+      const mudancas = reconciliarNumerosDaProva(
+        lista,
+        faixaDoDorsal,
+        numerosNovosDaProva.get(provaId) ?? []
+      );
+      for (const [dorsalId, novoNumero] of mudancas) {
+        const dorsal = dorsais.find((d) => d.id === dorsalId);
+        if (!dorsal) continue;
+        atualizarNumeroDoDorsal(dorsalId, novoNumero);
+        atualizarInscricao(dorsal.inscricaoId, {
+          numeroPeito: String(novoNumero),
+        });
+      }
+    }
+
     // 3. Mantém o `numeroPeito` da inscrição em sincronia com o dorsal já
     //    atribuído — importante após a carga do banco, quando a inscrição
     //    chega sem o espelho (o dorsal vem da tabela app_dorsais).
@@ -160,9 +240,9 @@ export function DorsaisAutoAssign() {
     dorsais,
     atletas,
     categorias,
-    obterPorInscricao,
     registrar,
     atualizarNumero,
+    atualizarNumeroDoDorsal,
     obterCriterio,
     obterFaixa,
     atualizarInscricao,

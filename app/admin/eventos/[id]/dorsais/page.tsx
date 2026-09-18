@@ -21,6 +21,7 @@ import { useDorsais } from "@/lib/mock/dorsais-store";
 import { useGaleria } from "@/lib/mock/galeria-store";
 import { Button } from "@/components/ui/button";
 import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 import { EditarFaixaModal, FaixaEmEdicao } from "@/components/dorsais/editar-faixa-modal";
 
 export default function DorsaisDoEventoPage() {
@@ -349,7 +350,7 @@ export default function DorsaisDoEventoPage() {
                       {dorsal ? String(dorsal.numero).padStart(3, "0") : "—"}
                     </td>
                     <td className="px-4 py-3 text-slate-700 dark:text-slate-200">
-                      {nomeDaInscricao(inscricao)}
+                      {normalizarNomePessoa(nomeDaInscricao(inscricao))}
                     </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       {grupoNome}

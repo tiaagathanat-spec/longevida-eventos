@@ -17,6 +17,7 @@ import {
   COR_FAIXA_HEX,
   resolverGrupoNumeracao,
 } from "@/lib/mock/faixas-numeracao-store";import { Select } from "@/components/ui/select";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 import { Input } from "@/components/ui/input";
 import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
 import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
@@ -205,7 +206,7 @@ export default function OrganizacaoInscritosPage() {
                     {dorsal ? String(dorsal.numero).padStart(3, "0") : "—"}
                   </td>
                   <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
-                    {nomeDaInscricao(inscricao)}
+                    {normalizarNomePessoa(nomeDaInscricao(inscricao))}
                     {inscricao.atletaNome2 && (
                       <span className="ml-2 inline-flex items-center rounded-full bg-brand-blue/10 px-2 py-0.5 text-[10px] font-medium text-brand-blue">
                         <Users className="mr-1 h-3 w-3" />

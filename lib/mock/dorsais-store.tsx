@@ -62,6 +62,7 @@ type DorsaisContextValue = {
   obterPorInscricao: (inscricaoId: string) => Dorsal | undefined;
   registrar: (inscricaoId: string, numero: number, provaId: string) => Dorsal;
   atualizarNumero: (inscricaoId: string, numero: number) => void;
+  atualizarNumeroDoDorsal: (dorsalId: string, numero: number) => void;
   atualizarControles: (
     inscricaoId: string,
     dados: Partial<Pick<Dorsal, ChaveControleDorsal>>,
@@ -95,6 +96,23 @@ export function DorsaisProvider({ children }: { children: ReactNode }) {
       obterPorInscricao: (inscricaoId) =>
         dorsais.find((d) => d.inscricaoId === inscricaoId),
       registrar: (inscricaoId, numero, provaId) => {
+        const em = new Date().toISOString();
+        // Idempotente por (inscrição + prova): se já existe dorsal para
+        // essa combinação, atualiza o número em vez de criar outra linha —
+        // a tabela tem UNIQUE(prova_id, numero) e cada inscrição deve ter
+        // NO MÁXIMO um dorsal por prova. Sem isso, execuções repetidas
+        // acumulariam dorsais duplicados e esbarrariam na constraint.
+        const existente = dorsais.find(
+          (d) => d.inscricaoId === inscricaoId && d.provaId === provaId
+        );
+        if (existente) {
+          setDorsais((atual) =>
+            atual.map((d) =>
+              d.id === existente.id ? { ...d, numero, atribuidoEm: em } : d
+            )
+          );
+          return existente;
+        }
         const novo: Dorsal = {
           id: gerarId(),
           inscricaoId,
@@ -104,7 +122,7 @@ export function DorsaisProvider({ children }: { children: ReactNode }) {
           medalhaEntregue: false,
           alimentacaoEntregue: false,
           kitEntregue: false,
-          atribuidoEm: new Date().toISOString(),
+          atribuidoEm: em,
           auditoria: [],
         };
         setDorsais((atual) => [...atual, novo]);
@@ -115,6 +133,11 @@ export function DorsaisProvider({ children }: { children: ReactNode }) {
           atual.map((d) =>
             d.inscricaoId === inscricaoId ? { ...d, numero } : d
           )
+        );
+      },
+      atualizarNumeroDoDorsal: (dorsalId, numero) => {
+        setDorsais((atual) =>
+          atual.map((d) => (d.id === dorsalId ? { ...d, numero } : d))
         );
       },
       atualizarControles: (inscricaoId, dados, usuario = "Operador") => {

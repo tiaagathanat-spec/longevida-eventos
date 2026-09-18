@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 const PAPEL_STYLE: Record<PapelOrganizacao, string> = {
   administrador: "bg-brand-blue/10 text-brand-blue",
@@ -364,7 +365,7 @@ export default function UsuariosPage() {
               {funcionarios.map((f) => (
                 <tr key={f.authUserId}>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-slate-900 dark:text-white">{f.nome}</p>
+                    <p className="font-medium text-slate-900 dark:text-white">{normalizarNomePessoa(f.nome)}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {f.email} · {f.telefone || "sem telefone"}
                     </p>

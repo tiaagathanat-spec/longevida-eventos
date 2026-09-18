@@ -2,6 +2,9 @@ import { COR_FAIXA_HEX, CorFaixa } from "@/lib/mock/faixas-numeracao-store";
 import { QrCodeImagem } from "@/components/qrcode/qr-code-imagem";
 import { LogoLongevida } from "@/components/brand/logo-longevida";
 import { Check } from "lucide-react";
+import type { DadosParticipacao } from "@/lib/dorsais/dados-participacao";
+import { BlocoParticipacao } from "@/components/dorsais/bloco-participacao";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 type CartaoDorsalProps = {
   numero: number;
@@ -16,6 +19,7 @@ type CartaoDorsalProps = {
   alimentacaoEntregue: boolean;
   kitEntregue: boolean;
   qrcodeConteudo?: string; // identificador do QR da inscrição (lido no leitor)
+  participacao?: DadosParticipacao; // percurso/distância e, em equipe, quem faz o quê
 };
 
 // Dorsal final em peitoral 19cm x 14,5cm. A cor da categoria ocupa as
@@ -34,6 +38,7 @@ export function CartaoDorsal({
   alimentacaoEntregue,
   kitEntregue,
   qrcodeConteudo,
+  participacao,
 }: CartaoDorsalProps) {
   const corHex = COR_FAIXA_HEX[cor];
 
@@ -105,8 +110,13 @@ export function CartaoDorsal({
           <span className="text-[120px] font-black leading-none tracking-tight text-slate-900">
             {String(numero).padStart(3, "0")}
           </span>
-          <p className="text-2xl font-bold text-slate-900">{atletaNome}</p>
+          <p className="text-2xl font-bold text-slate-900">{normalizarNomePessoa(atletaNome)}</p>
           <p className="text-sm font-medium text-slate-500">{dataEvento}</p>
+          {participacao ? (
+            <div className="mt-0.5 w-full">
+              <BlocoParticipacao participacao={participacao} />
+            </div>
+          ) : null}
         </div>
 
         {/* QR */}

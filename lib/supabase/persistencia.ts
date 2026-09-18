@@ -17,6 +17,7 @@ import {
   notificarMudancaFila,
   obterPendentesFila,
   removerDaFila,
+  totalPendentesFila,
 } from "@/lib/supabase/fila-offline";
 
 export type Linha = Record<string, unknown>;
@@ -39,6 +40,22 @@ export function camelParaSnake(linha: Linha): Linha {
     saida[snake] = valor;
   }
   return saida;
+}
+
+// Detecta falha de REDE (conexão instável, servidor inacessível), que o
+// supabase-js pode entregar como EXCEÇÃO ("TypeError: Failed to fetch") ou
+// como objeto de `error` com a mesma mensagem. Diferencia de erros de
+// servidor (403/401/422…), que têm `code` e resposta HTTP. Uma queda de
+// rede é transitória: o dado deve ir para a fila offline e a operação ser
+// repetida, nunca mostrar um erro cru ao usuário.
+export function ehErroDeRede(erro: unknown): boolean {
+  const mensagem =
+    erro instanceof Error
+      ? erro.message
+      : String((erro as { message?: unknown })?.message ?? "");
+  return /failed to fetch|fetch failed|networkerror|econnreset|enotfound|etimedout|load failed|server error|ERR_/i.test(
+    mensagem
+  );
 }
 
 // Omite campos `undefined` em vez de transformá-los em `null`: as
@@ -87,7 +104,11 @@ export async function carregar<T>(
     if (ordem) query = query.order(ordem);
     return query;
   }
-  try {
+  // Uma tentativa: consulta + tratamento de sessão vencida. Retorna:
+  //   * T[]        → sucesso (possivelmente vazio);
+  //   * [] também   → tabela inexistente/sem permissão (indefinido);
+  //   * null       → falha (sem conexão ou outro erro).
+  async function tentar(): Promise<T[] | null> {
     let supabase = await consultar();
     let { data, error } = await supabase;
     // Sessão vencida: renova o token e repete a consulta uma vez.
@@ -100,6 +121,44 @@ export async function carregar<T>(
       data = resultado.data;
       error = resultado.error;
     }
+    // Tabela não existe ou sem permissão: retorna array vazio sem erro.
+    if (error && (error.code === "42P01" || error.code === "42501")) return [] as T[];
+    if (error) return null;
+    return ((data ?? []).map((l) => snakeParaCamel(l as Linha)) as T[]);
+  }
+  try {
+    const resultado = await tentar();
+    if (resultado !== null) return resultado;
+  } catch (err) {
+    if (!ehErroDeRede(err)) return null;
+  }
+  // Falha de rede (breve queda de conexão): espera um instante e tenta de
+  // novo uma vez antes de desistir — a maioria das quedas de navegador é
+  // momentânea e o retry evita a tela "não foi possível carregar".
+  await new Promise((resolver) => setTimeout(resolver, 800));
+  try {
+    return await tentar();
+  } catch {
+    return null;
+  }
+}
+
+// Consulta pontual a uma tabela por coluna exata, convertendo o resultado
+// para camelCase. Usado por fluxos que precisam confirmar diretamente no
+// banco (ex.: leitor de QR) sem depender do estado em memória ainda
+// carregado. Respeita RLS — se a linha estiver fora do escopo do usuário,
+// retorna null, nunca dado falsificado.
+export async function buscarLinhas<T>(
+  tabela: string,
+  coluna: string,
+  valor: string
+): Promise<T[] | null> {
+  try {
+    const supabase = createClient();
+    await supabase.auth.getSession();
+    let query = supabase.from(tabela).select("*");
+    if (coluna && valor) query = query.eq(coluna, valor);
+    const { data, error } = await query;
     if (error) return null;
     return ((data ?? []).map((l) => snakeParaCamel(l as Linha)) as T[]);
   } catch {
@@ -135,6 +194,10 @@ export type ResultadoGravarLinhas = {
   ok: boolean;
   // Descrição amigável do motivo da falha (permissão, constraint, rede).
   motivo?: string;
+  // Indica que a falha é TRANSITÓRIA (rede) e vale re-tentar
+  // automaticamente. Erros permanentes (constraint, permissão) não são
+  // re-tentados: re-tentá-los para sempre não muda o resultado.
+  retentavel?: boolean;
 };
 
 export async function gravarLinhas<T>(
@@ -152,6 +215,21 @@ export async function gravarLinhas<T>(
     if (sessionError || !session) {
       const { error: refreshError } = await supabase.auth.refreshSession();
       if (refreshError) {
+        // Refresh falhando por REDE não é "sessão expirada": é a conexão que
+        // voltou a faltar. Enfileira e trata como falha transitória; o
+        // retry automático recupera quando a conexão voltar. Só refresh
+        // inválido de verdade (token/sessão expirado) pede novo login.
+        if (ehErroDeRede(refreshError)) {
+          for (const linha of linhas) {
+            enfileirarFila(tabela, camelParaSnake(limparJson(linha as Linha)));
+          }
+          notificarMudancaFila();
+          return {
+            ok: false,
+            retentavel: true,
+            motivo: `Sem conexão com o servidor ao salvar em ${tabela}. Suas alterações foram guardadas para sincronizar.`,
+          };
+        }
         return {
           ok: false,
           motivo: `Sessão expirada. Faça login novamente.`,
@@ -159,6 +237,7 @@ export async function gravarLinhas<T>(
       }
     }
     let bloqueioRls = false;
+    let redeFalhou = false;
     for (const linha of linhas) {
       const { error } = await supabase
         .from(tabela)
@@ -172,12 +251,41 @@ export async function gravarLinhas<T>(
           bloqueioRls = true;
           continue;
         }
+        // Falha de REDE retornada como objeto de erro (o supabase-js pode
+        // devolvê-la em vez de lançar): guarda na fila offline em vez de
+        // abortar com mensagem crua — é a mesma garantia do bloco catch.
+        if (ehErroDeRede(error)) {
+          console.warn(`[persistencia] sem conexão ao gravar ${tabela}:`, error.message);
+          enfileirarFila(tabela, camelParaSnake(limparJson(linha as Linha)));
+          redeFalhou = true;
+          continue;
+        }
+        // Conflito de unicidade (chave duplicada): erro PERMANENTE. Não é
+        // re-tentado e é exposto numa mensagem legível pelo usuário.
+        if (error.code === "23505") {
+          const motivoChave = error.message.includes("prova_numero")
+            ? "Já existe um dorsal com esse número para esta prova."
+            : "Registro duplicado: o item já existe com os mesmos dados.";
+          console.warn(`[persistencia] duplicado em ${tabela}:`, error.message);
+          return {
+            ok: false,
+            motivo: `Não foi possível salvar em ${tabela}: ${motivoChave}`,
+          };
+        }
         console.warn(`[persistencia] gravar ${tabela}:`, error.message);
         return {
           ok: false,
           motivo: `Não foi possível salvar em ${tabela}: ${error.message}`,
         };
       }
+    }
+    if (redeFalhou) {
+      notificarMudancaFila();
+      return {
+        ok: false,
+        retentavel: true,
+        motivo: `Sem conexão com o servidor ao salvar em ${tabela}. Suas alterações foram guardadas para sincronizar.`,
+      };
     }
     return bloqueioRls
       ? {
@@ -194,8 +302,10 @@ export async function gravarLinhas<T>(
     for (const linha of linhas) {
       enfileirarFila(tabela, camelParaSnake(limparJson(linha as Linha)));
     }
+    notificarMudancaFila();
     return {
       ok: false,
+      retentavel: true,
       motivo: `Sem conexão com o servidor ao salvar em ${tabela}. Suas alterações foram guardadas para sincronizar.`,
     };
   }
@@ -205,23 +315,52 @@ export async function gravarLinhas<T>(
 // os que foram persistidos (ou que nunca poderão ser — tabela inexistente
 // no ambiente). Bloqueios de permissão (RLS) mantêm o item na fila: o
 // bloqueio nunca é tratado como sucesso e o dado não é perdido.
+//
+// Com guarda de reentrância: a rotina é chamada de vários pontos (montagem
+// de cada store, evento `online`, intervalo periódico e botão manual), e a
+// guarda evita correr a fila em paralelo e duplicar upserts concorrentes.
+let filaSendoProcessada = false;
 export async function processarFilaOffline(): Promise<void> {
+  if (filaSendoProcessada) return;
   const pendentes = obterPendentesFila();
   if (pendentes.length === 0) return;
-  const supabase = createClient();
-  await supabase.auth.getSession();
-  for (const item of pendentes) {
-    try {
-      const { error } = await supabase.from(item.tabela).upsert(item.linha);
-      if (!error || error.code === "42P01") {
-        removerDaFila(item.tabela, item.linha.id);
+  filaSendoProcessada = true;
+  try {
+    const supabase = createClient();
+    await supabase.auth.getSession();
+    for (const item of pendentes) {
+      try {
+        const { error } = await supabase.from(item.tabela).upsert(item.linha);
+        if (!error || error.code === "42P01") {
+          removerDaFila(item.tabela, item.linha.id);
+          continue;
+        }
+        if (!ehErroDeRede(error)) {
+          // Erro PERMANENTE (constraint, permissão, sessão inválida):
+          // re-tentar para sempre é inútil e gera ruído. Remove da fila e
+          // registra; a sincronização ativa já expõe o motivo na tela.
+          console.warn(
+            `[persistencia] item não sincronizável, removido da fila (${item.tabela}):`,
+            error.message
+          );
+          removerDaFila(item.tabela, item.linha.id);
+        }
+        // Erros de rede: mantém na fila para a próxima tentativa.
+      } catch {
+        // Rede indisponível: mantém na fila.
       }
-      // Demais erros (ex.: sem rede): mantém na fila para próxima tentativa.
-    } catch {
-      // Rede indisponível: mantém na fila.
     }
+  } finally {
+    filaSendoProcessada = false;
+    notificarMudancaFila();
   }
-  notificarMudancaFila();
+}
+
+// Reação imediata do usuário ("Tentar novamente"): força uma passada na
+// fila offline agora. Os stores também re-tentam a sincronização atual
+// periodicamente (ver `usePersistencia`), então este botão apenas acelera.
+export async function tentarReconciliarAgora(): Promise<void> {
+  await processarFilaOffline();
 }
 
 type OpcoesPersistencia<T> = {
@@ -329,7 +468,12 @@ export function usePersistencia<T>(
   // base (`ultimoSincronizadoRef`) quando a gravação teve sucesso: assim,
   // uma falha não "esconde" dados não persistidos (que seriam perdidos ao
   // recarregar a página) e a próxima mudança tenta sincronizar de novo.
-  useEffect(() => {
+  //
+  // Extraída para `useCallback` para poder ser re-disparada sem depender
+  // de uma mudança de estado: o intervalo periódico abaixo re-chama este
+  // fluxo enquanto houver erro pendente, então uma queda de rede curta se
+  // resolve sozinha e os dados (e a fila offline) são salvos automaticamente.
+  const sincronizar = useCallback(() => {
     if (!prontoRef.current) return;
     const anterior = ultimoSincronizadoRef.current;
     if (anterior === dados) return;
@@ -353,10 +497,17 @@ export function usePersistencia<T>(
         if (resultado.ok && !falhouRemocao) {
           ultimoSincronizadoRef.current = dados;
           setErro(null);
+          erroRetentavelRef.current = false;
+          // Drena a fila offline logo após um sucesso: reduziu o tráfego ou
+          // a conexão voltou, então sincroniza qualquer linha enfileirada.
+          processarFilaOffline();
           return;
         }
         // Sincronização não completou: deixa a base de sincronização onde
         // está (a próxima mudança tenta de novo) e EXPÕE o motivo na tela.
+        // Só falhas TRANSITÓRIAS (rede) são re-tentadas automaticamente;
+        // erros permanentes (duplicado, permissão) param de bater no banco.
+        erroRetentavelRef.current = falhouRemocao ? false : !!resultado.retentavel;
         setErro(
           falhouRemocao
             ? `Não foi possível excluir dados em ${tabela}: ${erroRemocao.message}`
@@ -365,6 +516,34 @@ export function usePersistencia<T>(
       }
     );
   }, [tabela, dados, idCampo, idColuna, pronto]);
+
+  useEffect(() => {
+    sincronizar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabela, dados, idCampo, idColuna, pronto]);
+
+  // Referências sempre atuais para o intervalo de recuperação: sem ficar
+  // preso a uma closure velha de `sincronizar`/característica do erro.
+  const sincronizarRef = useRef<() => void>(() => {});
+  sincronizarRef.current = sincronizar;
+  const erroRetentavelRef = useRef(false);
+
+  // Recuperação automática: enquanto houver itens na fila offline, ou um
+  // erro TRANSITÓRIO de sincronização pendente, tenta de novo a cada 15s —
+  // quedas de rede breves se resolvem sem precisar recarregar a página, e
+  // o que foi enfileirado é enviado assim que a conexão estabiliza. Erros
+  // permanentes não entram aqui (são resolvidos pela próxima edição).
+  useEffect(() => {
+    const requisicao = setInterval(() => {
+      if (totalPendentesFila() > 0) {
+        processarFilaOffline();
+      }
+      if (erroRetentavelRef.current && prontoRef.current) {
+        sincronizarRef.current();
+      }
+    }, 15000);
+    return () => clearInterval(requisicao);
+  }, []);
 
   return { dados, setDados: setDadosComControle, pronto, erro };
 }

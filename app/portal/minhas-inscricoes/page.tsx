@@ -17,6 +17,7 @@ import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 const STATUS_LABEL: Record<InscricaoStatus, string> = {
   pendente: "Pagamento pendente",
@@ -139,7 +140,7 @@ export default function MinhasInscricoesPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-white">
-                    {nomeDaInscricao(inscricao)}
+                    {normalizarNomePessoa(nomeDaInscricao(inscricao))}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {nomeEvento(inscricao.eventoId)} · {descricaoProva(inscricao.provaId)}
@@ -196,7 +197,7 @@ export default function MinhasInscricoesPage() {
           onFechar={() => setInscricaoQrId(null)}
           conteudo={qrDaInscricao.identificador}
           identificador={qrDaInscricao.identificador}
-          subtitulo={`${nomeDaInscricao(inscricaoComQr)} · ${nomeEvento(inscricaoComQr.eventoId)} · ${descricaoProva(inscricaoComQr.provaId)}`}
+          subtitulo={`${normalizarNomePessoa(nomeDaInscricao(inscricaoComQr))} · ${nomeEvento(inscricaoComQr.eventoId)} · ${descricaoProva(inscricaoComQr.provaId)}`}
         />
       )}
       {inscricaoEmEdicao && (
@@ -208,7 +209,7 @@ export default function MinhasInscricoesPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Atualize os nomes dos integrantes da equipe de{" "}
             <span className="font-semibold text-slate-700 dark:text-slate-200">
-              {nomeDaInscricao(inscricaoEmEdicao)}
+              {normalizarNomePessoa(nomeDaInscricao(inscricaoEmEdicao))}
             </span>{" "}
             ({integrantesDe(inscricaoEmEdicao)} no total).
           </p>

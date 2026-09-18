@@ -6,6 +6,7 @@ import {
   Wallet,
   HourglassIcon,
   Package,
+  PiggyBank,
 } from "lucide-react";
 
 type CardsResumoProps = {
@@ -16,6 +17,7 @@ type CardsResumoProps = {
   receitaRecebida: number;
   receitaPendente: number;
   kitsAProduzir: number;
+  creditoUtilizado?: number;
 };
 
 function formatarMoeda(valor: number) {
@@ -30,6 +32,7 @@ export function CardsResumo({
   receitaRecebida,
   receitaPendente,
   kitsAProduzir,
+  creditoUtilizado = 0,
 }: CardsResumoProps) {
   const cards = [
     { label: "Total de inscritos", value: String(totalInscritos), icon: Users, cor: "blue" as const },
@@ -38,6 +41,7 @@ export function CardsResumo({
     { label: "Receita prevista", value: formatarMoeda(receitaPrevista), icon: TrendingUp, cor: "blue" as const },
     { label: "Receita recebida", value: formatarMoeda(receitaRecebida), icon: Wallet, cor: "green" as const },
     { label: "Receita pendente", value: formatarMoeda(receitaPendente), icon: HourglassIcon, cor: "amber" as const },
+    { label: "Crédito utilizado", value: formatarMoeda(creditoUtilizado), icon: PiggyBank, cor: "blue" as const },
     { label: "Kits a produzir", value: String(kitsAProduzir), icon: Package, cor: "blue" as const },
   ];
 

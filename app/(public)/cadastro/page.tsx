@@ -12,17 +12,22 @@ import {
   ChevronRight,
   Check,
   Camera,
-  MailCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { usePerfis, type TipoContaCadastro } from "@/lib/mock/perfis-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useSessao } from "@/lib/mock/sessao";
+import {
+  eErroEmailJaCadastrado,
+  MENSAGEM_EMAIL_JA_CONFIRMADO,
+} from "@/lib/auth-confirmacao";
+import { AguardandoConfirmacaoEmail } from "@/components/auth/aguardando-confirmacao";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { LogoLongevida } from "@/components/brand/logo-longevida";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 type Etapa = "perfil" | "atletas" | "acesso";
 
@@ -113,7 +118,7 @@ function novoAtletaRascunho(perfil: DadosPerfil, id: string, paraResponsavel: bo
   }
   return {
     id,
-    nome: perfil.nome,
+    nome: normalizarNomePessoa(perfil.nome),
     dataNascimento: perfil.dataNascimento,
     categoriaId: "1",
     email: perfil.email,
@@ -136,7 +141,12 @@ export default function CadastroPage() {
   const [confirmarSenha, setConfirmarSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [sucesso, setSucesso] = useState<string | null>(null);
+  // Confirmação de e-mail pendente: quando preenchido, o fluxo de etapas
+  // cede lugar à tela de primeiro acesso (confirmação obrigatória).
+  const [confirmacaoPendente, setConfirmacaoPendente] = useState<{
+    email: string;
+    recadastro: boolean;
+  } | null>(null);
 
   const indiceEtapa = ETAPAS.findIndex((e) => e.id === etapa);
 
@@ -230,8 +240,11 @@ export default function CadastroPage() {
         email: perfil.email.trim(),
         password: senha,
         options: {
+          // link de confirmação no e-mail leva ao callback (/api/auth),
+          // que troca o código por sessão e segue para o Portal.
+          emailRedirectTo: `${window.location.origin}/api/auth?next=/portal/dashboard`,
           data: {
-            nome: perfil.nome.trim(),
+nome: normalizarNomePessoa(perfil.nome),
             // Usado pelo trigger fn_criar_usuario_apos_signup para gravar
             // o perfil em `usuarios` com o tipo correto.
             tipo_conta: perfil.tipoConta,
@@ -244,6 +257,11 @@ export default function CadastroPage() {
       });
 
       if (error) {
+        if (eErroEmailJaCadastrado(error.message)) {
+          // Não cria segunda conta: verificamos se o e-mail já confirmou.
+          await verificarEmailJaCadastrado(perfil.email.trim());
+          return;
+        }
         setErro(mensagemErro(error.message));
         return;
       }
@@ -252,7 +270,7 @@ export default function CadastroPage() {
       // para que Meus Atletas, Inscrições etc. filtrem pelos novos dados.
       criarPerfil({
         tipoConta: perfil.tipoConta,
-        nome: perfil.nome.trim(),
+nome: normalizarNomePessoa(perfil.nome),
         email: perfil.email.trim(),
         dataNascimento: perfil.dataNascimento,
         genero: perfil.genero,
@@ -267,21 +285,21 @@ export default function CadastroPage() {
 
       atletas.forEach((a) =>
         criarAtleta({
-          nome: a.nome.trim(),
+          nome: normalizarNomePessoa(a.nome),
           dataNascimento: a.dataNascimento,
           categoriaId: a.categoriaId,
-          responsavelNome: perfil.nome.trim(),
+          responsavelNome: normalizarNomePessoa(perfil.nome),
           email: a.email.trim(),
           telefone: a.telefone.trim(),
           observacoesSaude: a.observacoesSaude.trim(),
         })
       );
 
-      definirSessao({ nome: perfil.nome.trim(), email: perfil.email.trim() });
+      definirSessao({ nome: normalizarNomePessoa(perfil.nome), email: perfil.email.trim() });
 
       if (data.session && data.user) {
-        // Confirmação de e-mail desativada: a sessão já existe. Garante
-        // que o perfil criado pelo trigger tenha o tipo escolhido.
+        // Apenas se o projeto estiver com confirmação de e-mail desativada
+        // (sessão retornada no signUp): entra direto e apara o tipo da conta.
         await supabase
           .from("usuarios")
           .update({ tipo_conta: perfil.tipoConta })
@@ -292,9 +310,9 @@ export default function CadastroPage() {
         return;
       }
 
-      setSucesso(
-        "Conta criada! Enviamos um link de confirmação para o seu e-mail. Após confirmar, você poderá fazer login."
-      );
+      // Fluxo normal (confirmação de e-mail OBRIGATÓRIA): sem sessão,
+      // mostra a tela de primeiro acesso com o e-mail a confirmar.
+      setConfirmacaoPendente({ email: perfil.email.trim(), recadastro: false });
     } catch {
       setErro("Não foi possível criar a conta agora. Tente novamente em instantes.");
     } finally {
@@ -302,9 +320,38 @@ export default function CadastroPage() {
     }
   }
 
+  // E-mail já usado no cadastro: consulta o estado atrás (service role) e
+  // orienta a pessoa a confirmar/reenviar em vez de criar outra conta.
+  async function verificarEmailJaCadastrado(email: string) {
+    setErro(null);
+    try {
+      const resposta = await fetch("/api/auth/estado-e-mail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!resposta.ok) {
+        setConfirmacaoPendente({ email, recadastro: true });
+        return;
+      }
+      const corpo = await resposta.json();
+      if (corpo.status === "confirmado") {
+        setErro(MENSAGEM_EMAIL_JA_CONFIRMADO);
+        return;
+      }
+      setConfirmacaoPendente({ email, recadastro: true });
+    } catch {
+      setConfirmacaoPendente({ email, recadastro: true });
+    }
+  }
+
   function mensagemErro(mensagem: string) {
     const m = mensagem.toLowerCase();
-    if (m.includes("already registered")) return "Este e-mail já está cadastrado. Faça login.";
+    if (m.includes("rate limit") || m.includes("too many") || m.includes("seconds"))
+      return "Muitos cadastros em pouco tempo. Aguarde alguns minutos e tente novamente.";
+    if (m.includes("already registered")) {
+      return "Este e-mail já está cadastrado. Confirme o e-mail enviado no cadastro ou use a opção de reenviar.";
+    }
     if (m.includes("invalid format") || m.includes("invalid email")) return "Informe um e-mail válido.";
     if (m.includes("password")) return "A senha não atende aos requisitos.";
     return mensagem;
@@ -369,58 +416,43 @@ export default function CadastroPage() {
           </p>
 
           {/* Indicador de etapas */}
-          <ol className="mt-6 flex items-start gap-3">
-            {ETAPAS.map((e, i) => {
-              const concluida = i < indiceEtapa;
-              const atual = i === indiceEtapa;
-              return (
-                <li key={e.id} className="flex flex-1 flex-col gap-1.5">
-                  <span
-                    className={`h-1 rounded-full ${
-                      concluida
-                        ? "bg-brand-blue"
-                        : atual
-                          ? "bg-brand-blue/40"
-                          : "bg-slate-200 dark:bg-slate-700"
-                    }`}
-                  />
-                  <span
-                    className={`text-xs font-medium ${
-                      concluida || atual
-                        ? "text-slate-900 dark:text-white"
-                        : "text-slate-400 dark:text-slate-500"
-                    }`}
-                  >
-                    {e.rotulo}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
+          {!confirmacaoPendente && (
+            <ol className="mt-6 flex items-start gap-3">
+              {ETAPAS.map((e, i) => {
+                const concluida = i < indiceEtapa;
+                const atual = i === indiceEtapa;
+                return (
+                  <li key={e.id} className="flex flex-1 flex-col gap-1.5">
+                    <span
+                      className={`h-1 rounded-full ${
+                        concluida
+                          ? "bg-brand-blue"
+                          : atual
+                            ? "bg-brand-blue/40"
+                            : "bg-slate-200 dark:bg-slate-700"
+                      }`}
+                    />
+                    <span
+                      className={`text-xs font-medium ${
+                        concluida || atual
+                          ? "text-slate-900 dark:text-white"
+                          : "text-slate-400 dark:text-slate-500"
+                      }`}
+                    >
+                      {e.rotulo}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
 
-          {sucesso ? (
-            <div className="mt-8 flex flex-col gap-4">
-              <div className="rounded-2xl border border-brand-green/30 bg-brand-green/10 p-6 text-center">
-                <p className="text-sm text-brand-green">{sucesso}</p>
-                <Link href="/login" className="mt-4 inline-block">
-                  <Button>Ir para o login</Button>
-                </Link>
-              </div>
-              <div
-                role="note"
-                className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-left text-sm leading-relaxed text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-300"
-              >
-                <p className="flex items-start gap-2.5">
-                  <MailCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>
-                    <strong className="font-bold">Primeiro acesso:</strong> o seu login só será
-                    liberado depois que o e-mail de confirmação for aberto e confirmado. Abra a
-                    mensagem que enviamos para{" "}
-                    <span className="font-semibold">{perfil.email.trim()}</span> e clique no link
-                    para confirmar. Se não encontrar, verifique a caixa de spam/lixo eletrônico.
-                  </span>
-                </p>
-              </div>
+          {confirmacaoPendente ? (
+            <div className="mt-8">
+              <AguardandoConfirmacaoEmail
+                email={confirmacaoPendente.email}
+                recadastro={confirmacaoPendente.recadastro}
+              />
             </div>
           ) : (
             <>

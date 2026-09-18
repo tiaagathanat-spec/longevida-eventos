@@ -17,14 +17,31 @@ import { useEventos } from "@/lib/mock/eventos-store";
 import { useModalidades } from "@/lib/mock/modalidades-store";
 import { useCategorias } from "@/lib/mock/categorias-store";
 import { useProvas } from "@/lib/mock/provas-store";
-import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
+import { useTiposProva } from "@/lib/mock/tipos-prova-store";
+import { useEtapasProva } from "@/lib/mock/etapas-prova-store";
+import { useInscricoes, nomeDaInscricao, type Inscricao } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { useDorsais, obterUltimaAuditoria } from "@/lib/mock/dorsais-store";
 import { useUsuarioOrganizacao } from "@/lib/supabase/usuario-organizacao";
 import { useQrCodes } from "@/lib/mock/qrcodes-store";
+import { buscarLinhas } from "@/lib/supabase/persistencia";
+import {
+  localizarResolucao,
+  normalizarIdentificador,
+  extrairIdInscricaoDireto,
+  validarEventoDaResolucao,
+  type ResolucaoQr,
+} from "@/lib/qrcodes/resolver";
+import {
+  montarParticipacao,
+  funcaoComplementa,
+  funcaoIndividualTexto,
+  type DadosParticipacao,
+} from "@/lib/dorsais/dados-participacao";
 import { LeitorQr } from "@/components/qrcode/leitor-qr";
 import { Button } from "@/components/ui/button";
 import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 type ResumoInscricao = {
   inscricaoId: string;
@@ -34,8 +51,9 @@ type ResumoInscricao = {
   atletaNome4?: string;
   provaNome: string;
   eventoNome: string;
-  numeroPeito: string | null;
+  numeroPeito: string;
   status: string;
+  participacao: DadosParticipacao;
 };
 
 export default function OrganizacaoLeitorQrPage() {
@@ -46,25 +64,40 @@ export default function OrganizacaoLeitorQrPage() {
   const { modalidades } = useModalidades();
   const { categorias } = useCategorias();
   const { provas } = useProvas();
+  const { tiposProva } = useTiposProva();
+  const { listarPorProva: listarEtapasDaProva } = useEtapasProva();
   const { inscricoes, erro: erroInscricoes } = useInscricoes();
   const { atletas } = useAtletas();
   const { obterPorInscricao: obterDorsal, atualizarControles } = useDorsais();
   const { nome } = useUsuarioOrganizacao();
-  const { localizarPorIdentificador, registrarLeitura, alternarAtivo, erro: erroQrCodes } =
-    useQrCodes();
+  const {
+    qrCodes,
+    pronto: prontoQrCodes,
+    localizarPorIdentificador,
+    buscarPorIdentificadorNoBanco,
+    registrarLeitura,
+    alternarAtivo,
+    erro: erroQrCodes,
+  } = useQrCodes();
 
   const evento = obterEvento(eventoId);
 
   const [identificador, setIdentificador] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [lido, setLido] = useState<number>(0);
+  const [processando, setProcessando] = useState(false);
+  const [inscricaoRemota, setInscricaoRemota] = useState<Inscricao | null>(null);
 
   const inscricao = useMemo(() => {
     if (!identificador) return null;
     const qr = localizarPorIdentificador(identificador);
     if (!qr) return null;
-    return inscricoes.find((i) => i.id === qr.inscricaoId) ?? null;
-  }, [identificador, localizarPorIdentificador, inscricoes]);
+    return (
+      inscricoes.find((i) => i.id === qr.inscricaoId) ??
+      inscricaoRemota ??
+      null
+    );
+  }, [identificador, localizarPorIdentificador, inscricoes, inscricaoRemota]);
 
   function nomeModalidade(id: string) {
     return modalidades.find((m) => m.id === id)?.nome ?? "—";
@@ -73,52 +106,127 @@ export default function OrganizacaoLeitorQrPage() {
     return categorias.find((c) => c.id === id)?.nome ?? "—";
   }
 
-  function lidarLeitura(codigo: string) {
-    const qr = localizarPorIdentificador(codigo);
-    setAviso(null);
+  // Consulta direta ao Supabase quando a inscrição não está em memória
+  // (ex.: store ainda carregando). Nunca cria uma inscrição nova.
+  async function buscarInscricaoNoBanco(id: string): Promise<Inscricao | null> {
+    try {
+      const linhas = await buscarLinhas<Inscricao>("app_inscricoes", "id", id);
+      return linhas?.[0] ?? null;
+    } catch {
+      return null;
+    }
+  }
 
-    if (!qr) {
-      setAviso("QR Code não encontrado. Confira se ele pertence a uma inscrição deste sistema.");
+  // Valida evento/status/ativo e exibe o resultado. Retorna true para a
+  // câmera parar (leitura aceita) ou false para continuar lendo.
+  function aceitarResolucao(resolucao: ResolucaoQr, codigo: string): boolean {
+    const eventoOk = validarEventoDaResolucao(resolucao, eventoId);
+    if (!eventoOk.ok) {
+      setAviso(
+        eventoOk.motivo === "outro_evento"
+          ? "Este QR Code pertence a outro evento. Confira se está lendo o código certo."
+          : "Não foi possível validar o evento deste QR Code."
+      );
       setIdentificador(null);
-      return;
+      return false;
     }
 
-    const inscricaoEncontrada = inscricoes.find((i) => i.id === qr.inscricaoId);
-    if (!inscricaoEncontrada) {
-      setAviso("Inscrição não localizada para este QR Code.");
-      setIdentificador(null);
-      return;
-    }
-
-    if (!qr.ativo) {
+    if (resolucao.qr && !resolucao.qr.ativo) {
       setAviso("Este QR Code foi cancelado. A inscrição não pode ser confirmada no evento.");
       setIdentificador(null);
-      return;
+      return false;
     }
 
-    if (inscricaoEncontrada.status === "cancelada") {
+    if (resolucao.inscricao.status === "cancelada") {
       setAviso("A inscrição vinculada a este QR Code está cancelada.");
       setIdentificador(codigo);
-      return;
+      return true;
     }
 
-    if (inscricaoEncontrada.status !== "confirmada") {
+    if (resolucao.inscricao.status !== "confirmada") {
       setAviso("A inscrição ainda não está confirmada (pagamento pendente).");
       setIdentificador(codigo);
-      return;
+      return true;
     }
 
     setIdentificador(codigo);
-    registrarLeitura(inscricaoEncontrada.id, {
+    registrarLeitura(resolucao.inscricao.id, {
       local: `Evento: ${evento?.nome ?? "—"}`,
       usuario: nome || "Operador",
     });
     setLido((n) => n + 1);
+    return true;
+  }
+
+  async function lidarLeitura(codigo: string): Promise<boolean> {
+    const normal = normalizarIdentificador(codigo);
+    setAviso(null);
+    if (!normal) {
+      setAviso("QR Code inválido (vazio).");
+      return false;
+    }
+
+    // 1) Resolve no estado em memória (individual ou Family/Dupla).
+    const resolucaoLocal = localizarResolucao(qrCodes, inscricoes, normal);
+    if (resolucaoLocal) return aceitarResolucao(resolucaoLocal, normal);
+
+    // 2) Fallback: consulta direta ao Supabase (estado ainda carregando).
+    setProcessando(true);
+    try {
+      const qr = await buscarPorIdentificadorNoBanco(normal);
+      if (qr) {
+        const inscricaoEncontrada =
+          inscricoes.find((i) => i.id === qr.inscricaoId) ??
+          (await buscarInscricaoNoBanco(qr.inscricaoId));
+        if (inscricaoEncontrada) {
+          if (inscricaoEncontrada.id === qr.inscricaoId) {
+            setInscricaoRemota(
+              inscricoes.some((i) => i.id === qr.inscricaoId) ? null : inscricaoEncontrada
+            );
+            return aceitarResolucao(
+              { qr, inscricao: inscricaoEncontrada, porIdentificador: true },
+              normal
+            );
+          }
+          setAviso("Inscrição não localizada para este QR Code.");
+          return false;
+        }
+        setAviso("Inscrição não localizada para este QR Code.");
+        return false;
+      }
+
+      // 3) Conteúdo igual ao id da inscrição (QR antigos).
+      const idDireto = extrairIdInscricaoDireto(normal);
+      if (idDireto) {
+        const inscricaoEncontrada =
+          inscricoes.find((i) => i.id === idDireto) ??
+          (await buscarInscricaoNoBanco(idDireto));
+        if (inscricaoEncontrada) {
+          setInscricaoRemota(
+            inscricoes.some((i) => i.id === idDireto) ? null : inscricaoEncontrada
+          );
+          return aceitarResolucao(
+            {
+              qr: qrCodes.find((q) => q.inscricaoId === inscricaoEncontrada.id),
+              inscricao: inscricaoEncontrada,
+              porIdentificador: false,
+            },
+            normal
+          );
+        }
+      }
+    } finally {
+      setProcessando(false);
+    }
+
+    setAviso("QR Code não encontrado. Confira se ele pertence a uma inscrição deste sistema.");
+    return false;
   }
 
   function reiniciar() {
     setIdentificador(null);
     setAviso(null);
+    setInscricaoRemota(null);
   }
 
   function alternarControle(chave: "checkInFeito" | "kitEntregue" | "medalhaEntregue" | "alimentacaoEntregue") {
@@ -134,6 +242,25 @@ export default function OrganizacaoLeitorQrPage() {
   const resumo: ResumoInscricao | null = useMemo(() => {
     if (!inscricao) return null;
     const prova = provas.find((p) => p.id === inscricao.provaId);
+    const modalidade = prova
+      ? modalidades.find((m) => m.id === prova.modalidadeId)
+      : undefined;
+    const categoria = prova
+      ? categorias.find((c) => c.id === prova.categoriaId)
+      : undefined;
+    const tipoProva = prova
+      ? tiposProva.find((t) => t.id === prova.tipoProvaId)
+      : undefined;
+    const dorsal = obterDorsal(inscricao.id);
+    const participacao = montarParticipacao({
+      inscricao,
+      prova,
+      modalidade,
+      categoria,
+      tipoProva,
+      dorsal,
+      etapas: listarEtapasDaProva(inscricao.provaId),
+    });
     return {
       inscricaoId: inscricao.id,
       atletaNome: inscricao.atletaNome,
@@ -144,11 +271,12 @@ export default function OrganizacaoLeitorQrPage() {
         ? `${nomeModalidade(prova.modalidadeId)} · ${nomeCategoria(prova.categoriaId)}`
         : "—",
       eventoNome: evento?.nome ?? "—",
-      numeroPeito: inscricao.numeroPeito ?? null,
+      numeroPeito: participacao.peito.texto,
       status: inscricao.status,
+      participacao,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inscricao, provas, evento, modalidades, categorias]);
+  }, [inscricao, provas, evento, modalidades, categorias, tiposProva, obterDorsal, listarEtapasDaProva]);
 
   if (!evento) {
     return (
@@ -189,6 +317,12 @@ export default function OrganizacaoLeitorQrPage() {
         </div>
       )}
 
+      {processando && (
+        <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+          Localizando inscrição no banco…
+        </div>
+      )}
+
       {identificador && inscricao && resumo ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-950">
           <div className="mb-4 flex items-center justify-between gap-2">
@@ -207,7 +341,7 @@ export default function OrganizacaoLeitorQrPage() {
               </div>
               <div>
                 <p className="text-base font-semibold text-slate-900 dark:text-white">
-                  {nomeDaInscricao(resumo)}
+                  {normalizarNomePessoa(nomeDaInscricao(resumo))}
                 </p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   {resumo.provaNome}
@@ -217,14 +351,72 @@ export default function OrganizacaoLeitorQrPage() {
             </div>
           </div>
 
-          {resumo.numeroPeito && (
-            <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-              Número de peito:{" "}
-              <span className="font-semibold text-slate-900 dark:text-white">
+          {resumo.numeroPeito && resumo.numeroPeito !== "—" ? (
+            <p className="mb-4 flex items-center text-sm text-slate-500 dark:text-slate-400">
+              Número de peito:
+              <span className="ml-2 rounded-lg bg-slate-900 px-2.5 py-0.5 font-black text-white dark:bg-white dark:text-slate-900">
                 {resumo.numeroPeito}
               </span>
             </p>
-          )}
+          ) : null}
+
+          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Participação
+            </p>
+            {resumo.participacao.tipo === "individual" ? (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                <CampoIdentificacao
+                  rotulo="Modalidade"
+                  valor={resumo.participacao.modalidade}
+                />
+                <CampoIdentificacao
+                  rotulo="Categoria"
+                  valor={resumo.participacao.categoria}
+                />
+                <CampoIdentificacao
+                  rotulo="Percurso/etapa"
+                  valor={resumo.participacao.participanteUnico.percurso}
+                />
+                <CampoIdentificacao
+                  rotulo="Função"
+                  valor={funcaoIndividualTexto(resumo.participacao.participanteUnico)}
+                />
+                <CampoIdentificacao
+                  rotulo="Distância"
+                  valor={resumo.participacao.participanteUnico.distancia}
+                />
+              </div>
+            ) : (
+              <div>
+                <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                  {resumo.participacao.nomeExibicao} · {resumo.participacao.modalidade} ·{" "}
+                  {resumo.participacao.categoria}
+                </p>
+                <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+                  {resumo.participacao.participantes.map((p) => (
+                    <li
+                      key={p.posicao}
+                      className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5"
+                    >
+                      <span className="w-40 shrink-0 font-semibold text-slate-900 dark:text-white">
+                        {p.nome}
+                      </span>
+                      <span className="text-sm text-slate-600 dark:text-slate-300">
+                        {funcaoComplementa({ funcao: p.funcao, percurso: p.percurso }) && p.funcao}
+                      </span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                        {p.percurso}
+                      </span>
+                      <span className="ml-auto text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        {p.distancia}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <ControleCard
@@ -326,5 +518,18 @@ function ControleCard({
         {ativo ? "Sim" : "Não"}
       </span>
     </button>
+  );
+}
+
+function CampoIdentificacao({ rotulo, valor }: { rotulo: string; valor: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 border-b border-slate-200 pb-1 dark:border-slate-700">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+        {rotulo}
+      </span>
+      <span className="text-right font-semibold text-slate-900 dark:text-white">
+        {valor && valor !== "—" ? valor : "—"}
+      </span>
+    </div>
   );
 }

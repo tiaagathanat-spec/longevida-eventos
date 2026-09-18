@@ -14,6 +14,7 @@ import { usePublicacoes } from "@/lib/mock/publicacoes-store";
 import { classificarPorGrupos } from "@/lib/mock/classificacao-grupos";
 import { useSessao } from "@/lib/mock/sessao";
 import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 const MEDALHA: Record<number, string> = {
   1: "text-amber-500",
@@ -150,7 +151,7 @@ export default function MeusResultadosPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-white">
-                    {nomeDaInscricao(inscricao)}
+                    {normalizarNomePessoa(nomeDaInscricao(inscricao))}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {evento?.nome} · {nomeModalidade(prova?.modalidadeId)} ·{" "}

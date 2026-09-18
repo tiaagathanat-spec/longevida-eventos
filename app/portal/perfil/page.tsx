@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { AlertaPersistencia } from "@/components/ui/alerta-persistencia";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 export default function MeuPerfilPage() {
   const { sessao, definirSessao } = useSessao();
@@ -76,7 +77,7 @@ export default function MeuPerfilPage() {
     setIsLoading(true);
     try {
       const dados = {
-        nome: form.nome.trim(),
+nome: normalizarNomePessoa(form.nome),
         telefone: form.telefone.trim(),
         dataNascimento: form.dataNascimento,
         genero: form.genero,
@@ -101,7 +102,7 @@ export default function MeuPerfilPage() {
       // Mantém a sessão mock consistente se o nome mudou (os filtros de
       // Meus Atletas / Inscrições usam sessao.nome).
       if (form.nome.trim() !== sessao.nome) {
-        definirSessao({ nome: form.nome.trim(), email: sessao.email });
+        definirSessao({ nome: normalizarNomePessoa(form.nome), email: sessao.email });
       }
 
       // Sincronização best-effort com o Supabase (tabela `usuarios`).
@@ -110,7 +111,7 @@ export default function MeuPerfilPage() {
       if (usuario.user) {
         await supabase
           .from("usuarios")
-          .update({ nome: form.nome.trim(), telefone: form.telefone.trim() })
+          .update({ nome: normalizarNomePessoa(form.nome), telefone: form.telefone.trim() })
           .eq("id", usuario.user.id);
       }
 

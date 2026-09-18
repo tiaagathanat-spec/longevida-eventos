@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { camelParaSnake, limparJson, snakeParaCamel } from "@/lib/supabase/persistencia";
+import {
+  camelParaSnake,
+  ehErroDeRede,
+  limparJson,
+  snakeParaCamel,
+} from "@/lib/supabase/persistencia";
 
 describe("snakeParaCamel", () => {
   it("converte colunas snake_case para camelCase", () => {
@@ -83,5 +88,34 @@ describe("limparJson", () => {
       checkInFeito: false,
       valor: 0,
     });
+  });
+});
+
+describe("ehErroDeRede", () => {
+  it("detecta exceção TypeError: Failed to fetch", () => {
+    expect(ehErroDeRede(new TypeError("Failed to fetch"))).toBe(true);
+  });
+
+  it("detecta erro retornado com mensagem de rede", () => {
+    expect(ehErroDeRede({ message: "TypeError: Failed to fetch" })).toBe(true);
+    expect(ehErroDeRede({ message: "fetch failed" })).toBe(true);
+  });
+
+  it("rejeita erros de servidor (Mensagem HTTP normal)", () => {
+    expect(
+      ehErroDeRede({ code: "42P01", message: "relation does not exist" })
+    ).toBe(false);
+    expect(
+      ehErroDeRede({ code: "42501", message: "permission denied" })
+    ).toBe(false);
+    expect(
+      ehErroDeRede({ code: "401", message: "Invalid JWT" })
+    ).toBe(false);
+  });
+
+  it("rejeita entrada sem mensagem", () => {
+    expect(ehErroDeRede(undefined)).toBe(false);
+    expect(ehErroDeRede(null)).toBe(false);
+    expect(ehErroDeRede({})).toBe(false);
   });
 });

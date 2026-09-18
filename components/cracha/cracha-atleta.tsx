@@ -1,6 +1,9 @@
 import { COR_FAIXA_HEX, CorFaixa } from "@/lib/mock/faixas-numeracao-store";
 import { QrCodeImagem } from "@/components/qrcode/qr-code-imagem";
 import { LogoLongevida } from "@/components/brand/logo-longevida";
+import type { DadosParticipacao } from "@/lib/dorsais/dados-participacao";
+import { BlocoParticipacao } from "@/components/dorsais/bloco-participacao";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 type CrachaAtletaProps = {
   atletaNome: string;
@@ -12,6 +15,7 @@ type CrachaAtletaProps = {
   qrcodeConteudo?: string; // conteúdo impresso no QR (lido no leitor da organização)
   fotoUrl?: string; // foto do atleta (data URL) quando disponível
   cor?: CorFaixa;
+  participacao?: DadosParticipacao; // percurso/distância e, em equipe, quem faz o quê
 };
 
 function iniciaisDe(nome: string) {
@@ -37,6 +41,7 @@ export function CrachaAtleta({
   qrcodeConteudo,
   fotoUrl,
   cor = "azul",
+  participacao,
 }: CrachaAtletaProps) {
   const corHex = COR_FAIXA_HEX[cor];
 
@@ -70,7 +75,7 @@ export function CrachaAtleta({
             />
           ) : (
             <span className="text-[1.15cm] font-black leading-none text-white">
-              {iniciaisDe(atletaNome)}
+              {iniciaisDe(normalizarNomePessoa(atletaNome))}
             </span>
           )}
         </div>
@@ -80,7 +85,7 @@ export function CrachaAtleta({
             Atleta
           </span>
           <p className="truncate text-[0.55cm] font-extrabold leading-tight text-slate-900">
-            {atletaNome}
+            {normalizarNomePessoa(atletaNome)}
           </p>
           <span
             className="mt-[0.12cm] w-fit max-w-full truncate rounded-full px-2 py-[0.05cm] text-[0.3cm] font-bold uppercase tracking-wide text-white"
@@ -110,9 +115,17 @@ export function CrachaAtleta({
           <span className="text-[0.32cm] font-extrabold uppercase tracking-wide text-slate-900">
             Credencial oficial
           </span>
-          <span className="text-[0.26cm] font-medium text-slate-500">
-            Apresente no check-in do evento.
-          </span>
+          {participacao ? (
+            <BlocoParticipacao
+              participacao={participacao}
+              compacto
+              className="mt-[0.04cm]"
+            />
+          ) : (
+            <span className="text-[0.26cm] font-medium text-slate-500">
+              Apresente no check-in do evento.
+            </span>
+          )}
           {identificador ? (
             <span className="mt-[0.06cm] truncate font-mono text-[0.24cm] text-slate-400">
               {identificador}

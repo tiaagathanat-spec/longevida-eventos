@@ -15,6 +15,7 @@ import { useSessao } from "@/lib/mock/sessao";
 import { CHAVE_PIX_LONGEVIDA, QR_PIX_LONGEVIDA } from "@/lib/config";
 import { enviarComprovantePix } from "@/lib/supabase/comprovantes-storage";
 import { Button } from "@/components/ui/button";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 type FormaEscolhida = "pix" | "local";
 
@@ -151,8 +152,7 @@ export default function PagamentoPage() {
         });
         selecionadasLista.forEach((i) => {
           salvarPagamento(i.id, {
-            valor: valorDaInscricao(i.provaId),
-            formaPagamento: "pix",
+            itens: [{ forma: "pix", valor: valorDaInscricao(i.provaId) }],
             status: "pendente",
             dataPagamento: null,
             comprovanteUrl: url,
@@ -169,8 +169,7 @@ export default function PagamentoPage() {
     // Pagamento no local: confirmado na hora, igual ao fluxo simulado.
     selecionadasLista.forEach((i) => {
       salvarPagamento(i.id, {
-        valor: valorDaInscricao(i.provaId),
-        formaPagamento: "dinheiro",
+        itens: [{ forma: "dinheiro", valor: valorDaInscricao(i.provaId) }],
         status: "pago",
         dataPagamento: hoje,
       });
@@ -284,7 +283,7 @@ export default function PagamentoPage() {
                       />
                       <div>
                         <p className="text-sm font-medium text-slate-900 dark:text-white">
-                          {nomeDaInscricao(inscricao)}
+                          {normalizarNomePessoa(nomeDaInscricao(inscricao))}
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           {descricaoProva(inscricao.provaId)}

@@ -9,6 +9,7 @@
 import { Lock, Medal, Trophy } from "lucide-react";
 import type { ItemClassificacao } from "@/lib/mock/classificacao";
 import { nomeDaInscricao, type Inscricao } from "@/lib/mock/inscricoes-store";
+import { normalizarNomePessoa } from "@/lib/utils/nomes";
 
 export type GrupoClassificacaoExibicao = {
   chave: string;
@@ -85,7 +86,7 @@ export function TabelaClassificacaoGrupos({
                     {item.numeroPeito || "—"}
                   </td>
                   <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-white">
-                    {nomeDaInscricao(item)}
+                    {normalizarNomePessoa(nomeDaInscricao(item))}
                   </td>
                   <td className="px-4 py-2.5 tabular-nums text-slate-600 dark:text-slate-300">
                     {formatarTempo(segundos)}
