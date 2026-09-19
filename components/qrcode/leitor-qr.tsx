@@ -28,6 +28,11 @@ export function LeitorQr({ onLeitura, pararAoLer = true }: LeitorQrProps) {
   // Cooldown para leituras rejeitadas: mantém a câmera ativa, mas evita
   // disparar onLeitura repetidamente enquanto o mesmo QR ainda está na tela.
   const rejeitadoAteRef = useRef(0);
+  // Referência sempre atual para o callback de leitura: impede que uma nova
+  // identidade de `onLeitura` (re-render do pai) reinicie a câmera a cada
+  // render — o loop de RAF e a obtenção da stream ficam estáveis.
+  const onLeituraRef = useRef(onLeitura);
+  onLeituraRef.current = onLeitura;
 
   const [erroCamera, setErroCamera] = useState(false);
   const [cameraAtiva, setCameraAtiva] = useState(false);
@@ -77,7 +82,7 @@ export function LeitorQr({ onLeitura, pararAoLer = true }: LeitorQrProps) {
       }
 
       const identificador = codigo.data.trim();
-      Promise.resolve(onLeitura(identificador)).then((aceito) => {
+      Promise.resolve(onLeituraRef.current(identificador)).then((aceito) => {
         if (aceito || !pararAoLer) {
           lidoRef.current = true;
           pararCamera();
@@ -92,7 +97,7 @@ export function LeitorQr({ onLeitura, pararAoLer = true }: LeitorQrProps) {
     }
 
     frameRef.current = requestAnimationFrame(lerFrame);
-  }, [onLeitura, pararAoLer, pararCamera]);
+  }, [pararAoLer, pararCamera]);
 
   const iniciarCamera = useCallback(async () => {
     setErroCamera(false);
@@ -124,7 +129,7 @@ export function LeitorQr({ onLeitura, pararAoLer = true }: LeitorQrProps) {
     const codigo = codigoManual.trim();
     if (!codigo) return;
     lidoRef.current = true;
-    onLeitura(codigo);
+    onLeituraRef.current(codigo);
     setCodigoManual("");
   }
 
