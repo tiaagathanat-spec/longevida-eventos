@@ -16,6 +16,12 @@ import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { usePerfis } from "@/lib/mock/perfis-store";
 import { useSessao } from "@/lib/mock/sessao";
 import { useQrDaInscricao } from "@/lib/mock/qrcodes-store";
+import {
+  useFaixasNumeracao,
+  resolverGrupoNumeracao,
+  type CorFaixa,
+} from "@/lib/mock/faixas-numeracao-store";
+import { agruparEmFolhas } from "@/lib/impressao/agrupar-em-folhas";
 import { montarParticipacao } from "@/lib/dorsais/dados-participacao";
 import { Button } from "@/components/ui/button";
 import { CrachaAtleta } from "@/components/cracha/cracha-atleta";
@@ -56,6 +62,7 @@ export default function CredenciaisPage() {
   const { inscricoes } = useInscricoes();
   const { obterPorInscricao: obterDorsal } = useDorsais();
   const { obterPorEmail } = usePerfis();
+  const { obterCriterio, obter: obterFaixa } = useFaixasNumeracao();
 
   const meusNomesDeAtletas = useMemo(
     () =>
@@ -82,12 +89,22 @@ export default function CredenciaisPage() {
           const dorsal = obterDorsal(inscricao.id);
           const atleta = atletas.find((a) => a.nome === inscricao.atletaNome);
           const foto = atleta ? obterPorEmail(atleta.email)?.foto : undefined;
+          // A cor e o rótulo da categoria vêm da MESMA fonte das faixas e
+          // dorsais, para a credencial do atleta ter a mesma cor do dorsal.
+          const grupo = resolverGrupoNumeracao(
+            obterCriterio(inscricao.eventoId),
+            categoria,
+            atleta
+          );
           return {
             inscricao,
             evento,
             categoria,
             atleta,
             foto,
+            cor: (obterFaixa(inscricao.eventoId, grupo.grupoId)?.cor ??
+              "azul") as CorFaixa,
+            categoriaNome: grupo.grupoNome,
             participacao: montarParticipacao({
               inscricao,
               prova,
@@ -103,7 +120,7 @@ export default function CredenciaisPage() {
         .sort((a, b) =>
           a.inscricao.atletaNome.localeCompare(b.inscricao.atletaNome)
         ),
-    [inscricoes, eventos, provas, categorias, modalidades, tiposProva, atletas, obterPorEmail, obterDorsal, listarEtapasDaProva, meusNomesDeAtletas]
+    [inscricoes, eventos, provas, categorias, modalidades, tiposProva, atletas, obterPorEmail, obterDorsal, obterCriterio, obterFaixa, listarEtapasDaProva, meusNomesDeAtletas]
   );
 
   return (
@@ -149,12 +166,13 @@ export default function CredenciaisPage() {
         </div>
       ) : (
         <div className="credenciais-grelha flex flex-wrap justify-center gap-4">
-          {credenciais.map(({ inscricao, evento, categoria, foto, participacao }) => (
+          {credenciais.map(({ inscricao, evento, cor, categoriaNome, foto, participacao }) => (
             <CrachaComQr
               key={inscricao.id}
               inscricaoId={inscricao.id}
               atletaNome={nomeDaInscricao(inscricao)}
-              categoriaNome={categoria!.nome}
+              categoriaNome={categoriaNome}
+              cor={cor}
               eventoNome={evento!.nome}
               dataEvento={formatarData(evento!.data)}
               localEvento={evento!.local}
@@ -165,19 +183,76 @@ export default function CredenciaisPage() {
         </div>
       )}
 
-      {/* Impressão: credenciais de 8,5cm x 5,5cm dispostas em grade de
-          2 colunas por folha A4. */}
+      {/* Impressão: credenciais de 8,5cm x 5,5cm em até 6 por folha A4
+          (2x3), cada uma exatamente do tamanho físico, com quebras de página
+          explícitas. */}
+      {credenciais.length > 0 && (
+        <div className="hidden print:block">
+          {agruparEmFolhas(credenciais, 6).map((pagina, pageIdx) => (
+            <div key={pageIdx} className="folha-cards-oficiais">
+              {pagina.map(({ inscricao, evento, cor, categoriaNome, foto, participacao }) => (
+                <CrachaComQr
+                  key={inscricao.id}
+                  inscricaoId={inscricao.id}
+                  atletaNome={nomeDaInscricao(inscricao)}
+                  categoriaNome={categoriaNome}
+                  cor={cor}
+                  eventoNome={evento!.nome}
+                  dataEvento={formatarData(evento!.data)}
+                  localEvento={evento!.local}
+                  fotoUrl={foto}
+                  participacao={participacao}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
       <style jsx global>{`
         @media print {
           @page {
-            size: A4;
-            margin: 0.5cm;
+            size: A4 portrait;
+            margin: 0;
+          }
+          html,
+          body {
+            margin: 0;
+            background: #fff !important;
+          }
+          * {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          header,
+          nav,
+          aside {
+            display: none !important;
+          }
+          div.h-1 {
+            display: none !important;
           }
           .credenciais-grelha {
-            display: grid !important;
+            display: none !important;
+          }
+          .folha-cards-oficiais {
+            width: 21cm;
+            height: 29.7cm;
+            box-sizing: border-box;
+            overflow: hidden;
+            page-break-after: always;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            display: grid;
             grid-template-columns: repeat(2, 8.5cm);
-            gap: 0.45cm !important;
+            grid-template-rows: repeat(3, 5.5cm);
+            gap: 0.35cm;
             justify-content: center;
+            align-content: center;
+            background: #fff;
+          }
+          .folha-cards-oficiais:last-child {
+            page-break-after: auto;
           }
         }
       `}</style>

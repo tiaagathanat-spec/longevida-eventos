@@ -15,6 +15,11 @@ import { useInscricoes, nomeDaInscricao } from "@/lib/mock/inscricoes-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
 import { usePerfis } from "@/lib/mock/perfis-store";
 import { useDorsais } from "@/lib/mock/dorsais-store";
+import {
+  useFaixasNumeracao,
+  resolverGrupoNumeracao,
+  type CorFaixa,
+} from "@/lib/mock/faixas-numeracao-store";
 import { useQrDaInscricao } from "@/lib/mock/qrcodes-store";
 import { agruparEmFolhas } from "@/lib/impressao/agrupar-em-folhas";
 import { montarParticipacao, type DadosParticipacao } from "@/lib/dorsais/dados-participacao";
@@ -28,6 +33,8 @@ type ItemCard = {
   inscricao: Inscricao;
   categoria: Categoria;
   atleta: Atleta;
+  cor: CorFaixa;
+  categoriaNome: string;
   foto?: string;
   participacao: DadosParticipacao;
 };
@@ -70,6 +77,7 @@ export default function CardsDoEventoPage() {
   const { atletas } = useAtletas();
   const { obterPorInscricao: obterDorsal } = useDorsais();
   const { obterPorEmail } = usePerfis();
+  const { obterCriterio, obter: obterFaixa } = useFaixasNumeracao();
 
   const evento = obterEvento(eventoId);
 
@@ -82,15 +90,25 @@ export default function CardsDoEventoPage() {
       const categoria = categorias.find((c) => c.id === prova.categoriaId);
       const atleta = atletas.find((a) => a.nome === inscricao.atletaNome);
       if (!categoria || !atleta) continue;
-      const foto = obterPorEmail(atleta.email)?.foto;
+      const fotos = obterPorEmail(atleta.email)?.foto;
       const modalidade = modalidades.find((m) => m.id === prova.modalidadeId);
       const tipoProva = tiposProva.find((t) => t.id === prova.tipoProvaId);
       const dorsal = obterDorsal(inscricao.id);
+      // A cor e o rótulo da categoria vêm da MESMA fonte das faixas e dos
+      // dorsais (faixas-numeracao-store), para o card e o dorsal terem a
+      // mesma cor de categoria.
+      const grupo = resolverGrupoNumeracao(
+        obterCriterio(eventoId),
+        categoria,
+        atleta
+      );
       itens.push({
         inscricao,
         categoria,
         atleta,
-        foto,
+        cor: obterFaixa(eventoId, grupo.grupoId)?.cor ?? "azul",
+        categoriaNome: grupo.grupoNome,
+        foto: fotos,
         participacao: montarParticipacao({
           inscricao,
           prova,
@@ -103,7 +121,7 @@ export default function CardsDoEventoPage() {
       });
     }
     return itens.sort((a, b) => a.inscricao.atletaNome.localeCompare(b.inscricao.atletaNome));
-  }, [inscricoes, provas, categorias, modalidades, tiposProva, atletas, eventoId, obterPorEmail, obterDorsal, listarEtapasDaProva]);
+  }, [inscricoes, provas, categorias, modalidades, tiposProva, atletas, eventoId, obterPorEmail, obterDorsal, obterCriterio, obterFaixa, listarEtapasDaProva]);
 
   // Seleção dos cards que serão impressos (padrão: todos, assim que os
   // dados carregam; o usuário pode desmarcar quais não quer imprimir).
@@ -129,9 +147,9 @@ export default function CardsDoEventoPage() {
     [cards, selecionadas]
   );
 
-  // Folhas de impressão: até 10 cards por página A4 (2x5).
+  // Folhas de impressão: até 6 cards por página A4 (2x3).
   const paginas = useMemo(
-    () => agruparEmFolhas(cardsSelecionados, 10),
+    () => agruparEmFolhas(cardsSelecionados, 6),
     [cardsSelecionados]
   );
 
@@ -144,7 +162,7 @@ export default function CardsDoEventoPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
+    <div className="mx-auto max-w-5xl px-6 py-8 print:max-w-none print:px-0 print:py-0">
       {/* Interface da aplicação — oculta na impressão */}
       <div className="print:hidden">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -194,7 +212,7 @@ export default function CardsDoEventoPage() {
               <p className="text-xs text-slate-400 dark:text-slate-500">
                 {cardsSelecionados.length} de {cards.length} card
                 {cards.length === 1 ? "" : "s"} selecionado
-                {cards.length === 1 ? "" : "s"} para impressão · até 10 por folha A4
+                {cards.length === 1 ? "" : "s"} para impressão · 6 por folha A4
               </p>
               <div className="flex items-center gap-2">
                 <Button
@@ -221,7 +239,7 @@ export default function CardsDoEventoPage() {
             </div>
 
             <div className="flex flex-wrap justify-center gap-4">
-              {cards.map(({ inscricao, categoria, foto, participacao }) => {
+              {cards.map(({ inscricao, cor, categoriaNome, foto, participacao }) => {
                 const marcado = selecionadas.has(inscricao.id);
                 return (
                   <div
@@ -252,7 +270,8 @@ export default function CardsDoEventoPage() {
                     <CrachaComQr
                       inscricaoId={inscricao.id}
                       atletaNome={nomeDaInscricao(inscricao)}
-                      categoriaNome={categoria.nome}
+                      categoriaNome={categoriaNome}
+                      cor={cor}
                       eventoNome={evento.nome}
                       dataEvento={formatarData(evento.data)}
                       localEvento={evento.local}
@@ -267,18 +286,19 @@ export default function CardsDoEventoPage() {
         )}
       </div>
 
-      {/* Impressão: SOMENTE os cards selecionados, até 10 por folha A4 (2x5),
+      {/* Impressão: SOMENTE os cards selecionados, até 6 por folha A4 (2x3),
           cada card exatamente 8,5x5,5 cm, sem nenhum outro elemento. */}
       {cardsSelecionados.length > 0 && (
         <div className="hidden print:block">
           {paginas.map((pagina, pageIdx) => (
             <div key={pageIdx} className="folha-cards-oficiais">
-              {pagina.map(({ inscricao, categoria, foto, participacao }) => (
+              {pagina.map(({ inscricao, cor, categoriaNome, foto, participacao }) => (
                 <CrachaComQr
                   key={inscricao.id}
                   inscricaoId={inscricao.id}
                   atletaNome={nomeDaInscricao(inscricao)}
-                  categoriaNome={categoria.nome}
+                  categoriaNome={categoriaNome}
+                  cor={cor}
                   eventoNome={evento.nome}
                   dataEvento={formatarData(evento.data)}
                   localEvento={evento.local}
@@ -322,7 +342,7 @@ export default function CardsDoEventoPage() {
             break-inside: avoid;
             display: grid;
             grid-template-columns: repeat(2, 8.5cm);
-            grid-auto-rows: 5.5cm;
+            grid-template-rows: repeat(3, 5.5cm);
             gap: 0.35cm;
             justify-content: center;
             align-content: center;
