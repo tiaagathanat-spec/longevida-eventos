@@ -97,7 +97,7 @@ export default function InscricoesPage() {
   const { provas } = useProvas();
   const { atletas } = useAtletas();
   const { tiposProva } = useTiposProva();
-  const { inscricoes, erro: erroInscricoes } = useInscricoes();
+  const { inscricoes, erro: erroInscricoes, excluir } = useInscricoes();
   const { qrCodes } = useQrCodes();
   const { obterPorInscricao } = usePagamentos();
   const searchParams = useSearchParams();
@@ -695,6 +695,7 @@ export default function InscricoesPage() {
         onCancel={() => setExcluindoId(null)}
         onConfirm={() => {
           if (excluindoId) {
+            excluir(excluindoId);
             setExcluindoId(null);
           }
         }}
