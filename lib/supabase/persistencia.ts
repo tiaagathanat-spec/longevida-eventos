@@ -85,6 +85,33 @@ export function limparJson<T>(valor: T): T {
   ) as T;
 }
 
+// Serialização determinística de uma linha para comparar conteúdo entre a
+// base de sincronização e o estado atual. Normaliza a ordem das chaves
+// (objetos são ordenados) e ignora campos `undefined` (que `limparJson`
+// omite antes do POST): assim uma linha carregada do banco e a mesma linha
+// em memória geram a mesma assinatura mesmo quando a ordem dos campos
+// difere. Usada pelo diff do `sincronizar` para reenviar apenas o que
+// mudou de verdade.
+function serializarDeterministico(valor: unknown): string {
+  if (valor === undefined) return "∅";
+  if (valor === null) return "null";
+  if (typeof valor !== "object") return JSON.stringify(valor);
+  if (Array.isArray(valor)) {
+    return "[" + valor.map(serializarDeterministico).join(",") + "]";
+  }
+  const objeto = valor as Record<string, unknown>;
+  const chaves = Object.keys(objeto)
+    .filter((c) => objeto[c] !== undefined)
+    .sort();
+  return (
+    "{" +
+    chaves
+      .map((c) => `${JSON.stringify(c)}:${serializarDeterministico(objeto[c])}`)
+      .join(",") +
+    "}"
+  );
+}
+
 // Aguarda o cliente de navegador restaurar a sessão do cookie antes de
 // qualquer consulta. O Supabase restaura a sessão de forma ASSÍNCRONA na
 // montagem: sem esta espera, o primeiro SELECT dispara ainda sem token e
@@ -371,6 +398,26 @@ export function rotinaAutomaticaPodeRodar(janelaMs = 10000): boolean {
   return true;
 }
 
+// Pacote de THROTTLE da reconciliação da fila offline. Vários pontos
+// chamam `processarFilaOffline` (montagem de cada store, evento online,
+// sucesso de sincronização e o intervalo); sem ritmo, cada passada tentava
+// reenviar a fila INTEIRA (até 400 itens) em rajada, saturando o pool de
+// conexões e alimentando os próprios erros de rede que repõem a fila.
+let ultimaDrenagemFila = 0;
+const INTERVALO_MINIMO_DRENAGEM = 8000;
+const MAX_ITENS_POR_PASSE = 20;
+const ATRASO_ENTRE_ITENS = 120;
+
+// O throttle protege o pool de conexões do NAVEGADOR; em ambiente de
+// teste (node/vitest, que roda chamadas em milissegundos) ele só tornaria
+// os testes de `processarFilaOffline` lentos e quebraria a semântica de
+// passada única — então é desativado só nos testes.
+const THROTTLE_ATIVO = typeof process === "undefined" || process.env?.NODE_ENV !== "test";
+
+function esperar(ms: number): Promise<void> {
+  return new Promise((resolver) => setTimeout(resolver, ms));
+}
+
 // Reconcilia a fila offline: tenta reenviar cada item pendente e remove
 // os que foram persistidos (ou que nunca poderão ser — tabela inexistente
 // no ambiente). Bloqueios de permissão (RLS) mantêm o item na fila: o
@@ -382,13 +429,26 @@ export function rotinaAutomaticaPodeRodar(janelaMs = 10000): boolean {
 let filaSendoProcessada = false;
 export async function processarFilaOffline(): Promise<void> {
   if (filaSendoProcessada) return;
+  // Só drena se a passada anterior terminou há tempo suficiente: como a
+  // fila é tentada de vários pontos (montagem, online, intervalo, botão),
+  // sem este intervalo mínimo as passadas se acumulariam em rajada.
+  const agora = Date.now();
+  if (THROTTLE_ATIVO && agora - ultimaDrenagemFila < INTERVALO_MINIMO_DRENAGEM) return;
   const pendentes = obterPendentesFila();
   if (pendentes.length === 0) return;
   filaSendoProcessada = true;
+  ultimaDrenagemFila = agora;
   try {
     const supabase = createClient();
     await supabase.auth.getSession();
+    let itensProcessados = 0;
     for (const item of pendentes) {
+      // Teto por passada: drena aos poucos (e com pausa entre os itens)
+      // para não estourar o limite de conexões do navegador. O intervalo
+      // global re-chama a rotina até a fila esvaziar.
+      if (itensProcessados >= MAX_ITENS_POR_PASSE) break;
+      if (THROTTLE_ATIVO) await esperar(ATRASO_ENTRE_ITENS);
+      itensProcessados++;
       try {
         const { error } = await supabase.from(item.tabela).upsert(item.linha);
         if (!error || error.code === "42P01") {
@@ -562,12 +622,32 @@ export function usePersistencia<T>(
     const chaveDepois = new Set(dados.map((x) => (x as Linha)[chave] as string));
     const removidos = [...chaveAntes].filter((id) => !chaveDepois.has(id));
 
+    // Diff linha a linha: só reenvia as linhas NOVAS ou que mudaram de
+    // conteúdo, em vez de reenviar a tabela inteira a cada alteração.
+    // Antes, uma única edição (ou a derivação automática de dorsais)
+    // re-gera um POST por linha de TODA a coleção — em coleções grandes
+    // isso vira uma rajada de milhares de requisições, estoura os
+    // recursos do navegador (net::ERR_INSUFFICIENT_RESOURCES) e
+    // retroalimenta a fila offline ("sem conexão ao gravar").
+    const basePorChave = new Map<string, T>();
+    for (const linha of anterior) {
+      basePorChave.set(String((linha as Linha)[chave] ?? ""), linha);
+    }
+    const paraEnviar: T[] = [];
+    for (const linha of dados) {
+      const id = String((linha as Linha)[chave] ?? "");
+      const base = basePorChave.get(id);
+      if (!base || serializarDeterministico(base) !== serializarDeterministico(linha)) {
+        paraEnviar.push(linha);
+      }
+    }
+
     const remocao =
       removidos.length > 0
         ? createClient().from(tabela).delete().in(idColuna, removidos)
         : Promise.resolve({ error: null });
 
-    Promise.all([remocao, gravarLinhas<T>(tabela, dados, idColuna)]).then(
+    Promise.all([remocao, gravarLinhas<T>(tabela, paraEnviar, idColuna)]).then(
       ([{ error: erroRemocao }, resultado]) => {
         const falhouRemocao = !!erroRemocao && erroRemocao.code !== "42P01";
         if (falhouRemocao) {

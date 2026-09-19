@@ -22,7 +22,7 @@
 // próprio do módulo (dorsais-store), preservando 100% do comportamento
 // já existente do sistema.
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useInscricoes } from "@/lib/mock/inscricoes-store";
 import { useProvas } from "@/lib/mock/provas-store";
 import { useAtletas } from "@/lib/mock/atletas-store";
@@ -40,15 +40,116 @@ import {
 } from "@/lib/mock/dorsais-reconciliar";
 
 export function DorsaisAutoAssign() {
-  const { inscricoes, atualizar: atualizarInscricao } = useInscricoes();
-  const { provas } = useProvas();
-  const { atletas } = useAtletas();
-  const { categorias } = useCategorias();
-  const { obterCriterio, obter: obterFaixa } = useFaixasNumeracao();
-  const { dorsais, registrar, atualizarNumero, atualizarNumeroDoDorsal } =
-    useDorsais();
+  const {
+    inscricoes,
+    pronto: inscricoesPronto,
+    atualizar: atualizarInscricao,
+  } = useInscricoes();
+  const { provas, pronto: provasPronto } = useProvas();
+  const { atletas, pronto: atletasPronto } = useAtletas();
+  const { categorias, pronto: categoriasPronto } = useCategorias();
+  const {
+    faixas,
+    pronto: faixasPronto,
+    obterCriterio,
+    obter: obterFaixa,
+  } = useFaixasNumeracao();
+  const {
+    dorsais,
+    pronto: dorsaisPronto,
+    registrar,
+    atualizarNumero,
+    atualizarNumeroDoDorsal,
+  } = useDorsais();
+
+  // Só deriva dorsais quando TODAS as fontes terminaram a carga. Antes, o
+  // efeito rodava com os stores ainda vazios/pela metade e gravava dorsais
+  // que logo seriam sobrescritos pela carga real — mais escritas e mais
+  // sincronizações em cascata.
+  const carregado =
+    inscricoesPronto &&
+    provasPronto &&
+    atletasPronto &&
+    categoriasPronto &&
+    faixasPronto &&
+    dorsaisPronto;
+
+  // Assinatura dos dados que ALTERAM o resultado da derivação. Enquanto
+  // ela não muda, a derivação já foi aplicada e NÃO deve rodar de novo.
+  // Antes, o efeito rodava a cada mudança de estado dos stores (inclusive
+  // as gravações que ele mesmo disparava), re-gerando dorsais e
+  // numeroPeito em cascata — alimentava a rajada de POSTs em
+  // app_dorsais/app_inscricoes mesmo com o sistema parado.
+  const assinatura = useMemo(() => {
+    if (!carregado) return "pendente";
+    const projetar = <T,>(linhas: T[], campos: (x: T) => unknown[]) => {
+      const linhasSerializadas = linhas
+        .map((l) => JSON.stringify(campos(l)))
+        .sort();
+      return JSON.stringify(linhasSerializadas);
+    };
+    const eventos = Array.from(
+      new Set(inscricoes.map((i) => i.eventoId))
+    ).sort();
+    const criterios = JSON.stringify(
+      eventos.map((e) => [e, obterCriterio(e)])
+    );
+    return [
+      projetar(inscricoes, (i) => [
+        i.id,
+        i.status,
+        i.atletaNome,
+        i.eventoId,
+        i.provaId,
+        i.numeroPeito,
+      ]),
+      projetar(provas, (p) => [p.id, p.eventoId, p.categoriaId]),
+      projetar(atletas, (a) => [
+        a.id,
+        a.nome,
+        a.dataNascimento,
+        a.categoriaId,
+      ]),
+      projetar(categorias, (c) => [
+        c.id,
+        c.nome,
+        c.idadeMinima,
+        c.idadeMaxima,
+      ]),
+      projetar(faixas, (f) => [
+        f.id,
+        f.eventoId,
+        f.grupoId,
+        f.grupoTipo,
+        f.numeroInicial,
+        f.numeroFinal,
+      ]),
+      criterios,
+      JSON.stringify(
+        dorsais
+          .map((d) => [d.id, d.inscricaoId, d.provaId, d.numero, d.atribuidoEm])
+          .sort()
+      ),
+    ].join("|");
+  }, [
+    carregado,
+    inscricoes,
+    provas,
+    atletas,
+    categorias,
+    faixas,
+    dorsais,
+    obterCriterio,
+  ]);
+
+  const ultimaAplicadaRef = useRef("");
 
   useEffect(() => {
+    // Evita derivar antes da carga completa e evita re-derivar em cascata
+    // quando os dados já estão consistentes com o que foi aplicado.
+    if (!carregado) return;
+    if (ultimaAplicadaRef.current === assinatura) return;
+    ultimaAplicadaRef.current = assinatura;
     // Números já atribuídos em execuções anteriores, agrupados por faixa
     // (evento + grupo) — evita confundir faixas de eventos/grupos
     // diferentes que por acaso usem números parecidos.
@@ -235,6 +336,8 @@ export function DorsaisAutoAssign() {
       }
     }
   }, [
+    assinatura,
+    carregado,
     inscricoes,
     provas,
     dorsais,
