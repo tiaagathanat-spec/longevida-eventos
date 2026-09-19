@@ -112,6 +112,31 @@ function serializarDeterministico(valor: unknown): string {
   );
 }
 
+// Suprime o REENVIO de linhas que falharam com erro PERMANENTE (duplicado,
+// permissão) e continuam EXATAMENTE com o mesmo conteúdo. Sem isto, a base
+// de sincronização não avança após o erro e a linha problemática era
+// re-enviada a cada mudança de estado dos stores — falatório de rede sem
+// fim (no pior caso, o mesmo "Já existe um dorsal..." repetido). Linhas
+// suspensas voltam a ser enviadas quando o usuário as EDITA de verdade
+// (o conteúdo muda) ou quando outra linha da mesma tabela sincroniza com
+// sucesso (a base avança e a suspensão perde o sentido).
+export function aplicarSupressaoFalhaPermanente<T>(
+  paraEnviar: T[],
+  falhaPermanente: ReadonlyMap<string, string>,
+  chave: string
+): { enviar: T[]; retomar: string[] } {
+  const enviar: T[] = [];
+  const retomar: string[] = [];
+  for (const linha of paraEnviar) {
+    const id = String((linha as Linha)[chave] ?? "");
+    const conteudo = serializarDeterministico(linha);
+    if (falhaPermanente.get(id) === conteudo) continue; // suspenso
+    if (falhaPermanente.has(id)) retomar.push(id);
+    enviar.push(linha);
+  }
+  return { enviar, retomar };
+}
+
 // Aguarda o cliente de navegador restaurar a sessão do cookie antes de
 // qualquer consulta. O Supabase restaura a sessão de forma ASSÍNCRONA na
 // montagem: sem esta espera, o primeiro SELECT dispara ainda sem token e
@@ -569,6 +594,11 @@ export function usePersistencia<T>(
   const prontoRef = useRef(false);
   const ultimoSincronizadoRef = useRef<T[]>(estadoInicial);
   const usuarioEditouRef = useRef(false);
+  // Linhas que falharam com erro PERMANENTE (23505/42501): guarda o
+  // conteúdo que falhou. Enquanto o conteúdo não mudar, a linha não é
+  // re-enviada (evita falatório de rede sem fim); quando o usuário edita,
+  // a diferença no conteúdo a libera de novo.
+  const falhaPermanenteRef = useRef(new Map<string, string>());
 
   // Marca que o usuário já alterou dados antes de a carga terminar, para
   // a carga não sobrescrever essas edições (as mudanças são sincronizadas
@@ -675,6 +705,16 @@ export function usePersistencia<T>(
       }
     }
 
+    // Linhas suspensas por falha PERMANENTE anterior são liberadas quando o
+    // conteúdo mudar (edição de verdade); as que continuam idênticas ficam
+    // fora da leva atual.
+    const { enviar, retomar } = aplicarSupressaoFalhaPermanente(
+      paraEnviar,
+      falhaPermanenteRef.current,
+      chave
+    );
+    for (const id of retomar) falhaPermanenteRef.current.delete(id);
+
     const remocao =
       removidos.length > 0
         ? agendarEscrita(() =>
@@ -685,7 +725,7 @@ export function usePersistencia<T>(
           )
         : Promise.resolve({ error: null });
 
-    Promise.all([remocao, gravarLinhas<T>(tabela, paraEnviar, idColuna)]).then(
+    Promise.all([remocao, gravarLinhas<T>(tabela, enviar, idColuna)]).then(
       ([{ error: erroRemocao }, resultado]) => {
         const falhouRemocao = !!erroRemocao && erroRemocao.code !== "42P01";
         if (falhouRemocao) {
@@ -695,6 +735,9 @@ export function usePersistencia<T>(
           ultimoSincronizadoRef.current = dados;
           setErro(null);
           erroRetentavelRef.current = false;
+          // Sucesso: a base agora espelha `dados`, então nada pendente —
+          // esvazia a suspensão de falhas permanentes desta tabela.
+          falhaPermanenteRef.current.clear();
           // Drena a fila offline logo após um sucesso: reduziu o tráfego ou
           // a conexão voltou, então sincroniza qualquer linha enfileirada.
           processarFilaOffline();
@@ -704,6 +747,16 @@ export function usePersistencia<T>(
         // está (a próxima mudança tenta de novo) e EXPÕE o motivo na tela.
         // Só falhas TRANSITÓRIAS (rede) são re-tentadas automaticamente;
         // erros permanentes (duplicado, permissão) param de bater no banco.
+        if (resultado.ok === false && !resultado.retentavel) {
+          // Erro PERMANENTE: registra o conteúdo que falhou para não
+          // reenviá-lo sem edição (evita falatório de rede no loop).
+          for (const linha of enviar) {
+            falhaPermanenteRef.current.set(
+              String((linha as Linha)[chave] ?? ""),
+              serializarDeterministico(linha)
+            );
+          }
+        }
         erroRetentavelRef.current = falhouRemocao ? false : !!resultado.retentavel;
         setErro(
           falhouRemocao

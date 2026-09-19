@@ -1,12 +1,81 @@
 import { describe, expect, it } from "vitest";
 import {
   agendarEscrita,
+  aplicarSupressaoFalhaPermanente,
   camelParaSnake,
   ehErroDeRede,
   ehErroSemRecursos,
   limparJson,
   snakeParaCamel,
 } from "@/lib/supabase/persistencia";
+
+describe("aplicarSupressaoFalhaPermanente", () => {
+  const serializadoDorsal5 = '{"id":"d1","numero":5}';
+
+  it("suspende linhas cujo conteúdo é idêntico ao que falhou permanentemente", () => {
+    const falha = new Map<string, string>([["d1", serializadoDorsal5]]);
+    expect(
+      aplicarSupressaoFalhaPermanente(
+        [
+          { id: "d1", numero: 5 }, // ordem de chaves diferente não altera a assinatura
+          { id: "d2", numero: 6 },
+        ],
+        falha,
+        "id"
+      )
+    ).toEqual({
+      enviar: [{ id: "d2", numero: 6 }],
+      retomar: [],
+    });
+  });
+
+  it("libera a linha quando o conteúdo muda (edição de verdade)", () => {
+    const falha = new Map<string, string>([["d1", serializadoDorsal5]]);
+    expect(
+      aplicarSupressaoFalhaPermanente(
+        [{ id: "d1", numero: 7 }],
+        falha,
+        "id"
+      )
+    ).toEqual({
+      enviar: [{ id: "d1", numero: 7 }],
+      retomar: ["d1"],
+    });
+  });
+
+  it("não suspende linhas sem falha permanente registrada", () => {
+    expect(
+      aplicarSupressaoFalhaPermanente(
+        [
+          { id: "d1", numero: 5 },
+          { id: "d2", numero: 6 },
+        ],
+        new Map<string, string>(),
+        "id"
+      )
+    ).toEqual({
+      enviar: [
+        { id: "d1", numero: 5 },
+        { id: "d2", numero: 6 },
+      ],
+      retomar: [],
+    });
+  });
+
+  it("ignora supressão quando a chave de identidade não é 'id'", () => {
+    const falha = new Map<string, string>([["ev1", '{"eventoId":"ev1","nome":"A"}']]);
+    expect(
+      aplicarSupressaoFalhaPermanente(
+        [{ eventoId: "ev1", nome: "A" }],
+        falha,
+        "eventoId"
+      )
+    ).toEqual({
+      enviar: [],
+      retomar: [],
+    });
+  });
+});
 
 describe("agendarEscrita", () => {
   it("serializa escritas concorrentes (uma por vez, em ordem)", async () => {
