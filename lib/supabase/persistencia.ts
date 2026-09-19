@@ -292,11 +292,12 @@ export async function gravarLinhas<T>(
       }
     }
     let bloqueioRls = false;
-    let redeFalhou = false;
+    let indice = 0;
     for (const linha of linhas) {
-      const { error } = await supabase
-        .from(tabela)
-        .upsert(limparJson(camelParaSnake(linha as Linha)));
+      const atual = linhas.length > 1 ? indice : 0;
+      const { error } = await agendarEscrita(() =>
+        supabase.from(tabela).upsert(limparJson(camelParaSnake(linha as Linha)))
+      );
       if (error && error.code !== "42P01") {
         if (error.code === "42501") {
           console.warn(
@@ -304,11 +305,14 @@ export async function gravarLinhas<T>(
             error.message
           );
           bloqueioRls = true;
+          indice++;
           continue;
         }
         // Falha de REDE retornada como objeto de erro (o supabase-js pode
-        // devolvê-la em vez de lançar): guarda na fila offline em vez de
-        // abortar com mensagem crua — é a mesma garantia do bloco catch.
+        // devolvê-la em vez de lançar): guarda a linha atual E as restantes
+        // na fila offline e interrompe a varredura — com o pool de conexões
+        // saturado, tentar as demais linhas agora só alimenta o mesmo erro
+        // (net::ERR_INSUFFICIENT_RESOURCES) linha a linha.
         if (ehErroDeRede(error)) {
           if (ehErroSemRecursos(error)) {
             console.warn(
@@ -322,9 +326,16 @@ export async function gravarLinhas<T>(
             };
           }
           console.warn(`[persistencia] sem conexão ao gravar ${tabela}:`, error.message);
-          enfileirarFila(tabela, camelParaSnake(limparJson(linha as Linha)));
-          redeFalhou = true;
-          continue;
+          const restantes = linhas.slice(atual);
+          for (const restante of restantes) {
+            enfileirarFila(tabela, camelParaSnake(limparJson(restante as Linha)));
+          }
+          notificarMudancaFila();
+          return {
+            ok: false,
+            retentavel: true,
+            motivo: `Sem conexão com o servidor ao salvar em ${tabela}. Suas alterações foram guardadas para sincronizar.`,
+          };
         }
         // Conflito de unicidade (chave duplicada): erro PERMANENTE. Não é
         // re-tentado e é exposto numa mensagem legível pelo usuário.
@@ -344,14 +355,7 @@ export async function gravarLinhas<T>(
           motivo: `Não foi possível salvar em ${tabela}: ${error.message}`,
         };
       }
-    }
-    if (redeFalhou) {
-      notificarMudancaFila();
-      return {
-        ok: false,
-        retentavel: true,
-        motivo: `Sem conexão com o servidor ao salvar em ${tabela}. Suas alterações foram guardadas para sincronizar.`,
-      };
+      indice++;
     }
     return bloqueioRls
       ? {
@@ -381,6 +385,33 @@ export async function gravarLinhas<T>(
       retentavel: true,
       motivo: `Sem conexão com o servidor ao salvar em ${tabela}. Suas alterações foram guardadas para sincronizar.`,
     };
+  }
+}
+
+// Fila única de ESCRITAS de rede. Todos os upsert/delete passam por aqui,
+// UM POR VEZ, com uma curta pausa entre elas. Sem este serializador, os
+// ~17 stores do layout sincronizavam grandes coleções em paralelo logo
+// após a carga, estourando o limite de conexões por host do navegador
+// (net::ERR_INSUFFICIENT_RESOURCES) — e cada linha a mais virava um POST
+// que falhava na hora, alimentando o loop "sem conexão ao gravar".
+let escritaEmAndamento = false;
+const esperandoEscrita: Array<() => void> = [];
+export async function agendarEscrita<T>(operacao: () => PromiseLike<T>): Promise<T> {
+  // Mutex assíncrono: enquanto uma escrita de rede estiver em andamento, as
+  // demais aguardam em fila FIFO. Sem isso, os usos concorrentes (vários
+  // stores + fila offline + intervalos) estouravam o limite de conexões por
+  // host do navegador (net::ERR_INSUFFICIENT_RESOURCES). O flag é reservado
+  // SINCRONAMENTE (antes de qualquer await), eliminando a corrida entre
+  // chamadas concorrentes.
+  while (escritaEmAndamento) {
+    await new Promise<void>((liberar) => esperandoEscrita.push(liberar));
+  }
+  escritaEmAndamento = true;
+  try {
+    return await Promise.resolve(operacao());
+  } finally {
+    escritaEmAndamento = false;
+    esperandoEscrita.shift()?.();
   }
 }
 
@@ -450,7 +481,9 @@ export async function processarFilaOffline(): Promise<void> {
       if (THROTTLE_ATIVO) await esperar(ATRASO_ENTRE_ITENS);
       itensProcessados++;
       try {
-        const { error } = await supabase.from(item.tabela).upsert(item.linha);
+        const { error } = await agendarEscrita(() =>
+          supabase.from(item.tabela).upsert(item.linha)
+        );
         if (!error || error.code === "42P01") {
           removerDaFila(item.tabela, item.linha.id);
           continue;
@@ -644,7 +677,12 @@ export function usePersistencia<T>(
 
     const remocao =
       removidos.length > 0
-        ? createClient().from(tabela).delete().in(idColuna, removidos)
+        ? agendarEscrita(() =>
+            createClient()
+              .from(tabela)
+              .delete()
+              .in(idColuna, removidos)
+          )
         : Promise.resolve({ error: null });
 
     Promise.all([remocao, gravarLinhas<T>(tabela, paraEnviar, idColuna)]).then(

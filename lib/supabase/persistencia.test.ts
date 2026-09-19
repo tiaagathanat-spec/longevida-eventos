@@ -1,11 +1,39 @@
 import { describe, expect, it } from "vitest";
 import {
+  agendarEscrita,
   camelParaSnake,
   ehErroDeRede,
   ehErroSemRecursos,
   limparJson,
   snakeParaCamel,
 } from "@/lib/supabase/persistencia";
+
+describe("agendarEscrita", () => {
+  it("serializa escritas concorrentes (uma por vez, em ordem)", async () => {
+    const marca: (number | string)[] = [];
+    const tarefa = (nome: string, duracao: number) =>
+      agendarEscrita(async () => {
+        marca.push(-1);
+        await new Promise((resolver) => setTimeout(resolver, duracao));
+        marca.push(nome);
+        return nome;
+      });
+
+    const [a, b, c] = await Promise.all([
+      tarefa("A", 12),
+      tarefa("B", 4),
+      tarefa("C", 8),
+    ]);
+
+    expect([a, b, c]).toEqual(["A", "B", "C"]);
+    // Nenhuma escrita começa antes de a anterior terminar: os marcadores
+    // "início" (-1) nunca aparecem empilhados.
+    for (let i = 0; i < marca.length; i += 2) {
+      expect(marca[i]).toBe(-1);
+      expect(typeof marca[i + 1]).toBe("string");
+    }
+  });
+});
 
 describe("snakeParaCamel", () => {
   it("converte colunas snake_case para camelCase", () => {
